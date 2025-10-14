@@ -14,13 +14,27 @@ datasource db {
 }
 
 model User {
-  id         Int      @id @default(autoincrement())
-  username   String   @unique
+  id             String   @id @default(uuid())
+  username       String?   @unique
+  name           String?
+  email          String   @unique
+  role           Role     @default(USER)
+  avatarUrl      String? 
+  bio            String?
+  languagesKnown Language[] @relation("KnownLanguages")
+  languagesLearn Language[] @relation("LearnLanguages")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  isVerified     Boolean  @default(false)
+
+}
+
+model Language {
+  id         String @id @default(uuid())
   name       String
-  email      String   @unique
-  role       Role     @default(USER)
-  createdAt  DateTime @default(now())
-  isVerified Boolean  @default(false)
+  level      String
+  knownBy    User[] @relation("KnownLanguages")
+  learningBy User[] @relation("LearnLanguages")
 }
 
 enum Role {

@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import supabase from '../../lib/supabaseClient';
+import { prisma } from 'src/lib/prismaClient';
 
 @Injectable()
 export class AuthService {
   async signup(email: string, password: string) {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -12,6 +13,20 @@ export class AuthService {
       },
     });
     if (error) throw new Error(error.message);
+
+    if (!data.user?.email) throw new Error('User email is missing');
+
+    await prisma.user.create({
+      data: {
+        id: data.user.id,
+        email: data.user.email,
+        name: null,
+        username: null,
+        bio: null,
+      },
+    });
+
+    return data.user;
   }
 
   async login(email: string, password: string) {

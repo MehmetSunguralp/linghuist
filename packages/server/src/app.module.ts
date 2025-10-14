@@ -3,6 +3,8 @@ import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { AuthModule } from './modules/auth/auth.module';
 import { AppResolver } from './app.resolver';
+import { decodeJwt } from './lib/jwt';
+import { UserModule } from './modules/user/user.module';
 
 @Module({
   imports: [
@@ -10,9 +12,18 @@ import { AppResolver } from './app.resolver';
       driver: ApolloDriver,
       autoSchemaFile: true,
       playground: true,
+      context: ({ req }) => {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        let userId = null;
+        if (token) {
+          const payload = decodeJwt(token);
+          userId = payload.sub;
+        }
+        return { userId };
+      },
     }),
     AuthModule,
+    UserModule,
   ],
-  providers: [AppResolver],
 })
 export class AppModule {}
