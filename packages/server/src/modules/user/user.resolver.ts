@@ -17,16 +17,18 @@ export class UserResolver {
     return this.userService.getUserById(id);
   }
 
-  @Mutation(() => User)
-  async updateMe(
-    @Args('userId') userId: string,
-    @Args('data') data: UpdateUserInput,
-  ) {
-    return this.userService.updateMe(userId, data);
-  }
-
   @Query(() => User, { nullable: true })
   async me(@Context('userId') userId: string) {
+    if (!userId) throw new Error('Unauthorized');
     return this.userService.getUserById(userId);
+  }
+
+  @Mutation(() => User)
+  async updateMe(
+    @Context('userId') userId: string,
+    @Args('data') data: UpdateUserInput,
+  ) {
+    if (!userId) throw new Error('Unauthorized');
+    return this.userService.updateMe(userId, data);
   }
 }

@@ -25,6 +25,7 @@ export class UserService {
   async updateMe(
     userId: string,
     data: {
+      name?: string;
       username?: string;
       bio?: string;
       avatarUrl?: string;
@@ -36,6 +37,7 @@ export class UserService {
       username: data.username,
       bio: data.bio,
       avatarUrl: data.avatarUrl,
+      name: data.name,
     };
 
     if (data.languagesKnown) {

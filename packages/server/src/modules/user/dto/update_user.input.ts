@@ -7,12 +7,18 @@ export class UserLanguageInput {
 
   @Field()
   level: string;
+
+  @Field()
+  code: string;
 }
 
 @InputType()
 export class UpdateUserInput {
   @Field({ nullable: true })
   username?: string;
+
+  @Field({ nullable: true })
+  name?: string;
 
   @Field({ nullable: true })
   bio?: string;

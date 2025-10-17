@@ -1,9 +1,23 @@
 import { ObjectType, Field, ID, Int } from '@nestjs/graphql';
+@ObjectType()
+export class UserLanguage {
+  @Field()
+  name: string;
+
+  @Field()
+  level: string;
+
+  @Field()
+  code: string;
+}
 
 @ObjectType()
 export class User {
   @Field(() => ID)
   id: string;
+
+  @Field({ nullable: true })
+  name: string;
 
   @Field()
   email: string;
@@ -14,12 +28,15 @@ export class User {
   @Field({ nullable: true })
   bio?: string;
 
+  @Field(() => String)
+  role: 'USER' | 'ADMIN' | 'TEACHER';
+
   @Field({ nullable: true })
   avatarUrl?: string;
 
-  @Field(() => [String], { nullable: true })
-  languagesKnown?: string[];
+  @Field(() => [UserLanguage], { nullable: true })
+  languagesKnown?: UserLanguage[];
 
-  @Field(() => [String], { nullable: true })
-  languagesLearning?: string[];
+  @Field(() => [UserLanguage], { nullable: true })
+  languagesLearn?: UserLanguage[];
 }

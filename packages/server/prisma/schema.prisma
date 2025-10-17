@@ -14,25 +14,28 @@ datasource db {
 }
 
 model User {
-  id             String   @id @default(uuid())
-  username       String?   @unique
+  id             String     @id @default(uuid())
+  username       String?    @unique
   name           String?
-  email          String   @unique
-  role           Role     @default(USER)
-  avatarUrl      String? 
+  email          String     @unique
+  role           Role       @default(USER)
+  avatarUrl      String?
   bio            String?
   languagesKnown Language[] @relation("KnownLanguages")
   languagesLearn Language[] @relation("LearnLanguages")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  isVerified     Boolean  @default(false)
-
+  posts          Post[]
+  comments       Comment[]
+  likes          Like[]
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  isVerified     Boolean    @default(false)
 }
 
 model Language {
   id         String @id @default(uuid())
   name       String
   level      String
+  code       String @default("")
   knownBy    User[] @relation("KnownLanguages")
   learningBy User[] @relation("LearnLanguages")
 }
@@ -40,5 +43,39 @@ model Language {
 enum Role {
   USER
   ADMIN
-  TEACHER
+  MODERATOR
+}
+
+model Post {
+  id            String    @id @default(uuid())
+  authorId      String
+  author        User      @relation(fields: [authorId], references: [id])
+  content       String
+  imageUrl      String?
+  allowComments Boolean   @default(true)
+  likes         Like[]
+  comments      Comment[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id])
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([postId, userId])
 }
