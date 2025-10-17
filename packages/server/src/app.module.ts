@@ -5,6 +5,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { AppResolver } from './app.resolver';
 import { decodeJwt } from './lib/jwt';
 import { UserModule } from './modules/user/user.module';
+import { PostModule } from './modules/post/post.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { UserModule } from './modules/user/user.module';
     }),
     AuthModule,
     UserModule,
+    PostModule,
   ],
 })
 export class AppModule {}
