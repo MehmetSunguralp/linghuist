@@ -3,6 +3,7 @@ import { prisma } from 'src/lib/prismaClient';
 import { NotificationService } from '../notification/notification.service';
 import { UserService } from '../user/user.service';
 import { NotificationType } from 'src/types/notification.types';
+import { Post } from './dto/post.model';
 
 @Injectable()
 export class PostService {
@@ -81,7 +82,7 @@ export class PostService {
     return true;
   }
 
-  async toggleLike(userId: string, postId: string) {
+  async toggleLike(userId: string, postId: string, postAuthorId: string) {
     const existing = await prisma.like.findUnique({
       where: { postId_userId: { postId, userId } },
     });
@@ -89,6 +90,18 @@ export class PostService {
       await prisma.like.delete({ where: { id: existing.id } });
       return { liked: false };
     }
+
+    const userInfo = await this.userService.getUserById(userId);
+    if (!userInfo) throw new Error('User not found');
+
+    await this.notificationService.createNotification({
+      recipientId: postAuthorId,
+      actorId: userId,
+      type: NotificationType.LIKE,
+      message: `${userInfo.username} liked your post`,
+      postId: postId,
+    });
+
     await prisma.like.create({ data: { postId, userId } });
     return { liked: true };
   }

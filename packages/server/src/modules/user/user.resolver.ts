@@ -21,13 +21,13 @@ export class UserResolver {
   async users() {
     return this.userService.getAllUsers();
   }
-  @ResolveField(() => [Notification])
-  async notifications(@Parent() user: User) {
-    return prisma.notification.findMany({
-      where: { recipientId: user.id },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
+  // @ResolveField(() => [Notification])
+  // async notifications(@Parent() user: User) {
+  //   return prisma.notification.findMany({
+  //     where: { recipientId: user.id },
+  //     orderBy: { createdAt: 'desc' },
+  //   });
+  // }
 
   @Query(() => User, { nullable: true })
   async user(@Args('id') id: string) {

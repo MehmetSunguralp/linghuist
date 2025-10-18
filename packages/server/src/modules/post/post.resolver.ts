@@ -61,8 +61,13 @@ export class PostResolver {
     @Context('userId') userId: string,
     @Args('postId') postId: string,
   ) {
-    if (!userId) throw new Error('Unauthorized');
-    const res = await this.postService.toggleLike(userId, postId);
+    const post = await this.postService.getPostById(postId);
+    if (!userId || !post?.authorId) throw new Error('Unauthorized');
+    const res = await this.postService.toggleLike(
+      userId,
+      postId,
+      post?.authorId,
+    );
     return res.liked;
   }
 

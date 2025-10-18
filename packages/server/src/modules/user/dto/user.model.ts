@@ -41,6 +41,6 @@ export class User {
   @Field(() => [UserLanguage], { nullable: true })
   languagesLearn?: UserLanguage[];
 
-  @Field(() => [Notification], { nullable: true })
-  notification: Notification[];
+  // @Field(() => [Notification], { nullable: true })
+  // notification: Notification[];
 }
