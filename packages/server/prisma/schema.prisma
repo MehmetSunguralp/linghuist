@@ -14,21 +14,23 @@ datasource db {
 }
 
 model User {
-  id             String     @id @default(uuid())
-  username       String?    @unique
+  id             String         @id @default(uuid())
+  username       String?        @unique
   name           String?
-  email          String     @unique
-  role           Role       @default(USER)
+  email          String         @unique
+  role           Role           @default(USER)
   avatarUrl      String?
   bio            String?
-  languagesKnown Language[] @relation("KnownLanguages")
-  languagesLearn Language[] @relation("LearnLanguages")
+  languagesKnown Language[]     @relation("KnownLanguages")
+  languagesLearn Language[]     @relation("LearnLanguages")
   posts          Post[]
   comments       Comment[]
   likes          Like[]
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
-  isVerified     Boolean    @default(false)
+  notifications  Notification[] @relation("UserNotifications")
+  sentActions    Notification[] @relation("UserActor")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  isVerified     Boolean        @default(false)
 }
 
 model Language {
@@ -47,26 +49,28 @@ enum Role {
 }
 
 model Post {
-  id            String    @id @default(uuid())
+  id            String         @id @default(uuid())
   authorId      String
-  author        User      @relation(fields: [authorId], references: [id])
+  author        User           @relation(fields: [authorId], references: [id])
   content       String
   imageUrl      String?
-  allowComments Boolean   @default(true)
+  allowComments Boolean        @default(true)
   likes         Like[]
   comments      Comment[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  notifications Notification[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 }
 
 model Comment {
-  id        String   @id @default(uuid())
-  postId    String
-  post      Post     @relation(fields: [postId], references: [id])
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id])
-  content   String
-  createdAt DateTime @default(now())
+  id            String         @id @default(uuid())
+  postId        String
+  post          Post           @relation(fields: [postId], references: [id])
+  authorId      String
+  author        User           @relation(fields: [authorId], references: [id])
+  content       String
+  notifications Notification[]
+  createdAt     DateTime       @default(now())
 }
 
 model Like {
@@ -78,4 +82,26 @@ model Like {
   createdAt DateTime @default(now())
 
   @@unique([postId, userId])
+}
+
+model Notification {
+  id          String           @id @default(uuid())
+  type        NotificationType
+  message     String
+  recipient   User             @relation("UserNotifications", fields: [recipientId], references: [id])
+  recipientId String
+  actor       User             @relation("UserActor", fields: [actorId], references: [id])
+  actorId     String
+  post        Post?            @relation(fields: [postId], references: [id])
+  postId      String?
+  comment     Comment?         @relation(fields: [commentId], references: [id])
+  commentId   String?
+  read        Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+}
+
+enum NotificationType {
+  LIKE
+  COMMENT
+  FOLLOW
 }

@@ -1,8 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { prisma } from 'src/lib/prismaClient';
+import { NotificationService } from '../notification/notification.service';
+import { UserService } from '../user/user.service';
+import { NotificationType } from 'src/types/notification.types';
 
 @Injectable()
 export class PostService {
+  constructor(
+    private readonly notificationService: NotificationService,
+    private readonly userService: UserService,
+  ) {}
   async createPost(
     authorId: string,
     data: { content: string; imageUrl?: string; allowComments?: boolean },
@@ -45,6 +52,17 @@ export class PostService {
     if (!post) throw new Error('Post not found');
     if (!post.allowComments)
       throw new Error('Comments are disabled for this post');
+
+    const userInfo = await this.userService.getUserById(authorId);
+    if (!userInfo) throw new Error('User not found');
+
+    await this.notificationService.createNotification({
+      recipientId: post.authorId,
+      actorId: authorId,
+      type: NotificationType.COMMENT,
+      message: `${userInfo.username} commented on your post`,
+      postId: post.id,
+    });
 
     return prisma.comment.create({
       data: { postId, authorId, content },

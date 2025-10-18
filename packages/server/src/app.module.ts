@@ -2,10 +2,10 @@ import { Module } from '@nestjs/common';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { AuthModule } from './modules/auth/auth.module';
-import { AppResolver } from './app.resolver';
 import { decodeJwt } from './lib/jwt';
 import { UserModule } from './modules/user/user.module';
 import { PostModule } from './modules/post/post.module';
+import { NotificationModule } from './modules/notification/notification.module';
 
 @Module({
   imports: [
@@ -26,6 +26,7 @@ import { PostModule } from './modules/post/post.module';
     AuthModule,
     UserModule,
     PostModule,
+    NotificationModule,
   ],
 })
 export class AppModule {}
