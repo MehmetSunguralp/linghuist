@@ -31,7 +31,7 @@ export class PostResolver {
   async post(@Args('id') id: string, @Context('userId') userId: string) {
     const p = await this.postService.getPostById(id);
     if (!p) return null;
-    const base = { ...p, likesCount: p.likes.length } as any;
+    const base = { ...p, likesCount: p.likes.length } as any; //TODO: Fix any type
     if (userId && userId === p.authorId)
       base.likers = p.likes.map((l) => l.user);
     else base.likers = null;

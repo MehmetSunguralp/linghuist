@@ -28,6 +28,10 @@ model User {
   likes          Like[]
   notifications  Notification[] @relation("UserNotifications")
   sentActions    Notification[] @relation("UserActor")
+  sentMessages     Message[]       @relation("SentMessages")
+  receivedMessages Message[]       @relation("ReceivedMessages")
+  chatParticipants  ChatParticipant[]
+
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   isVerified     Boolean        @default(false)
@@ -104,4 +108,44 @@ enum NotificationType {
   LIKE
   COMMENT
   FOLLOW
+  MESSAGE
+}
+
+
+model Chat {
+  id           String           @id @default(uuid())
+  participants ChatParticipant[]
+  messages     Message[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+model ChatParticipant {
+  id     String @id @default(uuid())
+  chat   Chat   @relation(fields: [chatId], references: [id])
+  chatId String
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+  @@unique([chatId, userId])
+}
+model Message {
+  id         String      @id @default(uuid())
+  senderId   String
+  receiverId String
+  type       MessageType @default(TEXT)
+  content    String?
+  mediaUrl   String?
+  createdAt  DateTime    @default(now())
+  sender     User        @relation("SentMessages", fields: [senderId], references: [id])
+  receiver   User        @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  read       Boolean     @default(false)
+  chat       Chat        @relation(fields: [chatId], references: [id])
+  chatId     String
+
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VOICE
 }

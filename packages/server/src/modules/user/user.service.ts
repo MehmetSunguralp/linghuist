@@ -34,6 +34,7 @@ export class UserService {
     },
   ) {
     const updateData: any = {
+      //TODO: Fix any type
       username: data.username,
       bio: data.bio,
       avatarUrl: data.avatarUrl,

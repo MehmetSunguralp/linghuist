@@ -6,6 +6,7 @@ import { decodeJwt } from './lib/jwt';
 import { UserModule } from './modules/user/user.module';
 import { PostModule } from './modules/post/post.module';
 import { NotificationModule } from './modules/notification/notification.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { NotificationModule } from './modules/notification/notification.module';
     UserModule,
     PostModule,
     NotificationModule,
+    ChatModule,
   ],
 })
 export class AppModule {}
