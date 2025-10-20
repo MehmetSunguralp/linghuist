@@ -1,5 +1,5 @@
 import { ObjectType, Field, ID } from '@nestjs/graphql';
-import { Notification } from 'src/modules/notification/dto/notification.model';
+import { FriendRequest } from './friend_request.model';
 @ObjectType()
 export class UserLanguage {
   @Field()
@@ -41,6 +41,9 @@ export class User {
   @Field(() => [UserLanguage], { nullable: true })
   languagesLearn?: UserLanguage[];
 
-  // @Field(() => [Notification], { nullable: true })
-  // notification: Notification[];
+  @Field(() => [FriendRequest], { nullable: true })
+  sentFriendRequests?: FriendRequest[];
+
+  @Field(() => [FriendRequest], { nullable: true })
+  receivedFriendRequests?: FriendRequest[];
 }

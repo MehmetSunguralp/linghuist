@@ -9,9 +9,8 @@ import {
 } from '@nestjs/graphql';
 import { UserService } from './user.service';
 import { UpdateUserInput } from './dto/update_user.input';
+import { FriendRequest } from './dto/friend_request.model';
 import { User } from './dto/user.model';
-import { Notification } from '../notification/dto/notification.model';
-import { prisma } from 'src/lib/prismaClient';
 
 @Resolver(() => User)
 export class UserResolver {
@@ -21,13 +20,6 @@ export class UserResolver {
   async users() {
     return this.userService.getAllUsers();
   }
-  // @ResolveField(() => [Notification])
-  // async notifications(@Parent() user: User) {
-  //   return prisma.notification.findMany({
-  //     where: { recipientId: user.id },
-  //     orderBy: { createdAt: 'desc' },
-  //   });
-  // }
 
   @Query(() => User, { nullable: true })
   async user(@Args('id') id: string) {
@@ -47,5 +39,36 @@ export class UserResolver {
   ) {
     if (!userId) throw new Error('Unauthorized');
     return this.userService.updateMe(userId, data);
+  }
+
+  @Mutation(() => FriendRequest)
+  async sendFriendRequest(
+    @Context('userId') userId: string,
+    @Args('receiverId') receiverId: string,
+  ) {
+    if (!userId) throw new Error('Unauthorized');
+    return this.userService.sendFriendRequest(userId, receiverId);
+  }
+
+  @Mutation(() => FriendRequest)
+  async respondFriendRequest(
+    @Context('userId') userId: string,
+    @Args('requestId') requestId: string,
+    @Args('accept') accept: boolean,
+  ) {
+    if (!userId) throw new Error('Unauthorized');
+    return this.userService.respondFriendRequest(requestId, userId, accept);
+  }
+
+  @Query(() => [User])
+  async friends(@Context('userId') userId: string) {
+    if (!userId) throw new Error('Unauthorized');
+    return this.userService.getFriends(userId);
+  }
+
+  @Query(() => [FriendRequest])
+  async pendingFriendRequests(@Context('userId') userId: string) {
+    if (!userId) throw new Error('Unauthorized');
+    return this.userService.getPendingRequests(userId);
   }
 }

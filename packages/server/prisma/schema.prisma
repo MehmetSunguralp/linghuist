@@ -14,27 +14,28 @@ datasource db {
 }
 
 model User {
-  id             String         @id @default(uuid())
-  username       String?        @unique
-  name           String?
-  email          String         @unique
-  role           Role           @default(USER)
-  avatarUrl      String?
-  bio            String?
-  languagesKnown Language[]     @relation("KnownLanguages")
-  languagesLearn Language[]     @relation("LearnLanguages")
-  posts          Post[]
-  comments       Comment[]
-  likes          Like[]
-  notifications  Notification[] @relation("UserNotifications")
-  sentActions    Notification[] @relation("UserActor")
-  sentMessages     Message[]       @relation("SentMessages")
-  receivedMessages Message[]       @relation("ReceivedMessages")
-  chatParticipants  ChatParticipant[]
-
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  isVerified     Boolean        @default(false)
+  id                     String            @id @default(uuid())
+  username               String?           @unique
+  name                   String?
+  email                  String            @unique
+  role                   Role              @default(USER)
+  avatarUrl              String?
+  bio                    String?
+  languagesKnown         Language[]        @relation("KnownLanguages")
+  languagesLearn         Language[]        @relation("LearnLanguages")
+  posts                  Post[]
+  comments               Comment[]
+  likes                  Like[]
+  notifications          Notification[]    @relation("UserNotifications")
+  sentActions            Notification[]    @relation("UserActor")
+  sentMessages           Message[]         @relation("SentMessages")
+  receivedMessages       Message[]         @relation("ReceivedMessages")
+  chatParticipants       ChatParticipant[]
+  sentFriendRequests     FriendRequest[]   @relation("SentRequests")
+  receivedFriendRequests FriendRequest[]   @relation("ReceivedRequests")
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  isVerified             Boolean           @default(false)
 }
 
 model Language {
@@ -111,13 +112,12 @@ enum NotificationType {
   MESSAGE
 }
 
-
 model Chat {
-  id           String           @id @default(uuid())
+  id           String            @id @default(uuid())
   participants ChatParticipant[]
   messages     Message[]
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 }
 
 model ChatParticipant {
@@ -126,8 +126,10 @@ model ChatParticipant {
   chatId String
   user   User   @relation(fields: [userId], references: [id])
   userId String
+
   @@unique([chatId, userId])
 }
+
 model Message {
   id         String      @id @default(uuid())
   senderId   String
@@ -141,11 +143,26 @@ model Message {
   read       Boolean     @default(false)
   chat       Chat        @relation(fields: [chatId], references: [id])
   chatId     String
-
 }
 
 enum MessageType {
   TEXT
   IMAGE
   VOICE
+}
+
+model FriendRequest {
+  id         String                @id @default(uuid())
+  senderId   String
+  receiverId String
+  status     FriendRequestStatus   @default(PENDING)
+  createdAt  DateTime              @default(now())
+  sender     User                  @relation("SentRequests", fields: [senderId], references: [id])
+  receiver   User                  @relation("ReceivedRequests", fields: [receiverId], references: [id])
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
 }

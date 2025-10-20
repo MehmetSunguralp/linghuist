@@ -11,6 +11,7 @@ import { ChatService } from './chat.service';
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 import { MessageType } from 'src/types/message.types';
+
 dotenv.config();
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
@@ -29,14 +30,14 @@ export class ChatGateway implements OnGatewayConnection {
       socket.handshake.query?.token ||
       socket.handshake.headers?.token;
     if (!token) {
-      socket.emit('error', 'unauthenticated');
+      socket.emit('error', 'Unauthenticated');
       socket.disconnect(true);
       return;
     }
 
     const { data, error } = await supabaseAdmin.auth.getUser(token);
     if (error || !data?.user) {
-      socket.emit('error', 'invalid_token');
+      socket.emit('error', 'Invalid or expired token');
       socket.disconnect(true);
       return;
     }
@@ -51,7 +52,7 @@ export class ChatGateway implements OnGatewayConnection {
   afterInit(server: Server) {
     server.on('connection', (socket) => {
       socket.onAny((event, data) => {
-        console.log('📩 Incoming event:', event, data);
+        console.log('Incoming event:', event, data);
       });
     });
   }
@@ -68,9 +69,9 @@ export class ChatGateway implements OnGatewayConnection {
       me,
       payload.otherUserId,
     );
-    if (!chat?.id) return socket.emit('error', 'chat not found');
+    if (!chat?.id) return socket.emit('error', 'Chat not found');
     socket.join(chat.id);
-    socket.emit('chat', chat);
+    socket.emit('chat', { chatId: chat.id, messages: chat.messages });
   }
 
   @SubscribeMessage('join_chat')
@@ -79,7 +80,7 @@ export class ChatGateway implements OnGatewayConnection {
     @ConnectedSocket() socket: Socket,
   ) {
     const me = (socket as any).userId; //TODO: Fix any type
-    if (!me) return socket.emit('error', 'unauthorized');
+    if (!me) return socket.emit('error', 'Unauthorized');
     socket.join(payload.chatId);
     socket.emit('joined', { chatId: payload.chatId });
     console.log(`Joined Chat! Chat ID:${payload.chatId}`);
@@ -91,7 +92,7 @@ export class ChatGateway implements OnGatewayConnection {
     @ConnectedSocket() socket: Socket,
   ) {
     const me = (socket as any).userId;
-    if (!me) return socket.emit('error', 'unauthorized');
+    if (!me) return socket.emit('error', 'Unauthorized');
 
     socket.leave(payload.chatId);
     socket.emit('left', { chatId: payload.chatId });
@@ -118,7 +119,7 @@ export class ChatGateway implements OnGatewayConnection {
     @ConnectedSocket() socket: Socket,
   ) {
     const senderId = (socket as any).userId; //TODO: Fix any type
-    if (!senderId) return socket.emit('error', 'unauthorized');
+    if (!senderId) return socket.emit('error', 'Unauthorized');
 
     // pass receiverId only if client provides it; service will resolve otherwise
     const message = await this.chatService.sendMessage(
@@ -157,7 +158,7 @@ export class ChatGateway implements OnGatewayConnection {
     @ConnectedSocket() socket: Socket,
   ) {
     const userId = (socket as any).userId; //TODO: Fix any type
-    if (!userId) return socket.emit('error', 'unauthorized');
+    if (!userId) return socket.emit('error', 'Unauthorized');
     socket
       .to(payload.chatId)
       .emit('stop_typing', { chatId: payload.chatId, userId });
@@ -187,7 +188,7 @@ export class ChatGateway implements OnGatewayConnection {
     @MessageBody() payload: { event: string; data: any },
     @ConnectedSocket() socket: Socket,
   ) {
-    console.log('🔄 Raw payload event:', payload.event);
+    console.log('Raw payload event:', payload.event);
     if (payload.event === 'create_or_get_chat') {
       return this.onCreateOrGetChat(payload.data, socket);
     }
@@ -212,6 +213,6 @@ export class ChatGateway implements OnGatewayConnection {
   }
   handleDisconnect(socket: Socket) {
     const userId = (socket as any).userId;
-    console.log(`Disconnected: ${userId}`);
+    console.log(`Disconnected: ${userId || 'Anonymous User'}`);
   }
 }
