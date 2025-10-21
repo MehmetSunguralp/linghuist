@@ -149,4 +149,47 @@ export class UserService {
     });
     return pending.map((p) => this.normalizeFriendRequest(p));
   }
+
+  async findLanguageMatches(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { languagesKnown: true, languagesLearn: true },
+    });
+
+    if (!user) throw new Error('User not found');
+
+    const learnCodes = user.languagesLearn.map((l) => l.code);
+    const knownCodes = user.languagesKnown.map((l) => l.code);
+
+    const matches = await prisma.user.findMany({
+      where: {
+        AND: [
+          {
+            languagesKnown: {
+              some: { code: { in: learnCodes } },
+            },
+          },
+          {
+            languagesLearn: {
+              some: { code: { in: knownCodes } },
+            },
+          },
+          { id: { not: userId } },
+        ],
+      },
+      include: { languagesKnown: true, languagesLearn: true },
+    });
+
+    return matches;
+  }
+
+  async updateUserPresence(userId: string, isOnline: boolean) {
+    return prisma.user.update({
+      where: { id: userId },
+      data: {
+        isOnline,
+        lastOnline: new Date(),
+      },
+    });
+  }
 }

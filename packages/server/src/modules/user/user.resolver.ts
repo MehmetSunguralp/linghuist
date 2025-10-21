@@ -17,12 +17,14 @@ export class UserResolver {
   constructor(private readonly userService: UserService) {}
 
   @Query(() => [User])
-  async users() {
+  async users(@Context('userId') userId: string) {
+    if (!userId) throw new Error('Unauthorized');
     return this.userService.getAllUsers();
   }
 
   @Query(() => User, { nullable: true })
-  async user(@Args('id') id: string) {
+  async user(@Args('id') id: string, @Context('userId') userId: string) {
+    if (!userId) throw new Error('Unauthorized');
     return this.userService.getUserById(id);
   }
 
@@ -70,5 +72,11 @@ export class UserResolver {
   async pendingFriendRequests(@Context('userId') userId: string) {
     if (!userId) throw new Error('Unauthorized');
     return this.userService.getPendingRequests(userId);
+  }
+
+  @Query(() => [User])
+  async matchUsers(@Context('userId') userId: string) {
+    if (!userId) throw new Error('Unauthorized');
+    return this.userService.findLanguageMatches(userId);
   }
 }

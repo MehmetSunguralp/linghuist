@@ -29,6 +29,7 @@ export class PostResolver {
 
   @Query(() => Post, { nullable: true })
   async post(@Args('id') id: string, @Context('userId') userId: string) {
+    if (!userId) throw new Error('Unauthorized');
     const p = await this.postService.getPostById(id);
     if (!p) return null;
     const base = { ...p, likesCount: p.likes.length } as any; //TODO: Fix any type

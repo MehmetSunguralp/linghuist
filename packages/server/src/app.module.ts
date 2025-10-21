@@ -17,9 +17,13 @@ import { ChatModule } from './modules/chat/chat.module';
       context: ({ req }) => {
         const token = req.headers.authorization?.replace('Bearer ', '');
         let userId = null;
-        if (token) {
-          const payload = decodeJwt(token);
-          userId = payload.sub;
+        try {
+          if (token) {
+            const payload = decodeJwt(token);
+            userId = payload.sub;
+          }
+        } catch {
+          userId = null;
         }
         return { userId };
       },
