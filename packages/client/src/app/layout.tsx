@@ -1,10 +1,16 @@
+import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 
 export const metadata = {
   title: 'Linghuist',
-  description: 'AI-powered language learning platform',
+  description: 'Removes boundaries in language learning.',
 };
+
+const inter = Inter({
+  variable: '--font-inter',
+  subsets: ['latin'],
+});
 
 export default function RootLayout({
   children,
@@ -12,7 +18,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang='en'>
+    <html className='dark' style={{ colorScheme: 'dark' }} lang='en'>
       <body>
         <Providers>{children}</Providers>
       </body>
