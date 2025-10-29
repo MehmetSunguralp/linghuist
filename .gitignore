@@ -3,3 +3,5 @@ dist
 .env
 .DS_Store
 yarn.lock
+bash.exe.stackdump
+package-lock.json
