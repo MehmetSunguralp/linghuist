@@ -39,8 +39,8 @@ export class UserService {
       username?: string;
       bio?: string;
       avatarUrl?: string;
-      languagesKnown?: { name: string; level: string }[];
-      languagesLearn?: { name: string; level: string }[];
+      languagesKnown?: { name: string; level: string; code: string }[];
+      languagesLearn?: { name: string; level: string; code: string }[];
     },
   ) {
     const updateData: any = {
@@ -57,6 +57,7 @@ export class UserService {
         create: data.languagesKnown.map((lang) => ({
           name: lang.name,
           level: lang.level,
+          code: lang.code,
         })),
       };
     }
@@ -67,6 +68,7 @@ export class UserService {
         create: data.languagesLearn.map((lang) => ({
           name: lang.name,
           level: lang.level,
+          code: lang.code,
         })),
       };
     }

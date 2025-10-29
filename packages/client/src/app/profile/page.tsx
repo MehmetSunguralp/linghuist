@@ -10,8 +10,8 @@ import {
   Textarea,
   HStack,
   IconButton,
-  NativeSelectRoot,
-  NativeSelectField,
+  Menu,
+  Portal,
 } from '@chakra-ui/react';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
@@ -110,9 +110,38 @@ export default function ProfilePage() {
     }),
     onSubmit: async (values) => {
       try {
-        // Strip __typename from language objects
+        // Check for incomplete language entries
+        const incompleteKnown = values.languagesKnown.some(
+          (lang) =>
+            (lang.name.trim() !== '' && lang.level.trim() === '') ||
+            (lang.name.trim() === '' && lang.level.trim() !== ''),
+        );
+        const incompleteLearn = values.languagesLearn.some(
+          (lang) =>
+            (lang.name.trim() !== '' && lang.level.trim() === '') ||
+            (lang.name.trim() === '' && lang.level.trim() !== ''),
+        );
+
+        if (incompleteKnown || incompleteLearn) {
+          toaster.create({
+            title: 'Please complete all language entries',
+            description:
+              'Each language must have both a name and a level selected',
+            type: 'warning',
+          });
+          return;
+        }
+
+        // Filter out empty entries and strip __typename from language objects
         const cleanLanguages = (langs: Language[]) =>
-          langs.map(({ name, level, code }) => ({ name, level, code }));
+          langs
+            .filter(
+              (lang) => lang.name.trim() !== '' && lang.level.trim() !== '',
+            ) // Only keep entries with both name and level
+            .map(({ name, level, code }) => ({ name, level, code }));
+
+        const cleanedLanguagesKnown = cleanLanguages(values.languagesKnown);
+        const cleanedLanguagesLearn = cleanLanguages(values.languagesLearn);
 
         const { data } = await client.mutate<{ updateMe: UserProfile }>({
           mutation: UPDATE_PROFILE,
@@ -123,13 +152,9 @@ export default function ProfilePage() {
               bio: values.bio || null,
               avatarUrl: values.avatarUrl || null,
               languagesKnown:
-                values.languagesKnown.length > 0
-                  ? cleanLanguages(values.languagesKnown)
-                  : null,
+                cleanedLanguagesKnown.length > 0 ? cleanedLanguagesKnown : null,
               languagesLearn:
-                values.languagesLearn.length > 0
-                  ? cleanLanguages(values.languagesLearn)
-                  : null,
+                cleanedLanguagesLearn.length > 0 ? cleanedLanguagesLearn : null,
             },
           },
         });
@@ -182,6 +207,21 @@ export default function ProfilePage() {
     }
 
     formik.setFieldValue(field, updated);
+  };
+
+  // Check if there are any incomplete language entries
+  const hasIncompleteLanguages = () => {
+    const incompleteKnown = formik.values.languagesKnown.some(
+      (lang) =>
+        (lang.name.trim() !== '' && lang.level.trim() === '') ||
+        (lang.name.trim() === '' && lang.level.trim() !== ''),
+    );
+    const incompleteLearn = formik.values.languagesLearn.some(
+      (lang) =>
+        (lang.name.trim() !== '' && lang.level.trim() === '') ||
+        (lang.name.trim() === '' && lang.level.trim() !== ''),
+    );
+    return incompleteKnown || incompleteLearn;
   };
 
   if (loading) {
@@ -291,7 +331,11 @@ export default function ProfilePage() {
             <Box>
               <HStack justify='space-between' mb={4}>
                 <Heading size='lg'>Languages I Know</Heading>
-                <Button size='sm' onClick={() => addLanguage('known')}>
+                <Button
+                  size='sm'
+                  variant={'outline'}
+                  onClick={() => addLanguage('known')}
+                >
                   <HStack gap={1}>
                     <MdAdd />
                     <Text>Add Language</Text>
@@ -300,43 +344,80 @@ export default function ProfilePage() {
               </HStack>
               <VStack gap={3} align='stretch'>
                 {formik.values.languagesKnown.map((lang, index) => (
-                  <HStack key={index} gap={2}>
-                    <NativeSelectRoot size='md' flex={1}>
-                      <NativeSelectField
-                        value={lang.name}
-                        onChange={(e) =>
-                          updateLanguage('known', index, 'name', e.target.value)
-                        }
-                      >
-                        <option value=''>Select language</option>
-                        {LANGUAGES.map((language) => (
-                          <option key={language.code} value={language.name}>
-                            {language.name}
-                          </option>
-                        ))}
-                      </NativeSelectField>
-                    </NativeSelectRoot>
+                  <HStack key={index} gap={2} position='relative'>
+                    <Box flex={1}>
+                      <Menu.Root positioning={{ sameWidth: true, flip: true }}>
+                        <Menu.Trigger asChild>
+                          <Button
+                            variant='outline'
+                            size='md'
+                            width='full'
+                            justifyContent='space-between'
+                          >
+                            {lang.name || 'Select language'}
+                          </Button>
+                        </Menu.Trigger>
+                        <Portal>
+                          <Menu.Positioner>
+                            <Menu.Content maxH='300px' overflowY='auto'>
+                              {LANGUAGES.map((language) => (
+                                <Menu.Item
+                                  key={language.code}
+                                  value={language.name}
+                                  onClick={() =>
+                                    updateLanguage(
+                                      'known',
+                                      index,
+                                      'name',
+                                      language.name,
+                                    )
+                                  }
+                                >
+                                  {language.name}
+                                </Menu.Item>
+                              ))}
+                            </Menu.Content>
+                          </Menu.Positioner>
+                        </Portal>
+                      </Menu.Root>
+                    </Box>
 
-                    <NativeSelectRoot size='md' flex={1}>
-                      <NativeSelectField
-                        value={lang.level}
-                        onChange={(e) =>
-                          updateLanguage(
-                            'known',
-                            index,
-                            'level',
-                            e.target.value,
-                          )
-                        }
-                      >
-                        <option value=''>Select level</option>
-                        {LANGUAGE_LEVELS.map((level) => (
-                          <option key={level.value} value={level.value}>
-                            {level.label}
-                          </option>
-                        ))}
-                      </NativeSelectField>
-                    </NativeSelectRoot>
+                    <Box w='200px'>
+                      <Menu.Root positioning={{ sameWidth: true, flip: true }}>
+                        <Menu.Trigger asChild>
+                          <Button
+                            variant='outline'
+                            size='md'
+                            width='full'
+                            justifyContent='space-between'
+                          >
+                            {lang.level || 'Select level'}
+                          </Button>
+                        </Menu.Trigger>
+                        <Portal>
+                          <Menu.Positioner>
+                            <Menu.Content>
+                              {LANGUAGE_LEVELS.map((level) => (
+                                <Menu.Item
+                                  key={level.value}
+                                  value={level.value}
+                                  onClick={() =>
+                                    updateLanguage(
+                                      'known',
+                                      index,
+                                      'level',
+                                      level.value,
+                                    )
+                                  }
+                                >
+                                  {level.label}
+                                </Menu.Item>
+                              ))}
+                            </Menu.Content>
+                          </Menu.Positioner>
+                        </Portal>
+                      </Menu.Root>
+                    </Box>
 
                     <IconButton
                       aria-label='Remove'
@@ -355,7 +436,11 @@ export default function ProfilePage() {
             <Box>
               <HStack justify='space-between' mb={4}>
                 <Heading size='lg'>Languages I'm Learning</Heading>
-                <Button size='sm' onClick={() => addLanguage('learn')}>
+                <Button
+                  size='sm'
+                  variant={'outline'}
+                  onClick={() => addLanguage('learn')}
+                >
                   <HStack gap={1}>
                     <MdAdd />
                     <Text>Add Language</Text>
@@ -364,43 +449,80 @@ export default function ProfilePage() {
               </HStack>
               <VStack gap={3} align='stretch'>
                 {formik.values.languagesLearn.map((lang, index) => (
-                  <HStack key={index} gap={2}>
-                    <NativeSelectRoot size='md' flex={1}>
-                      <NativeSelectField
-                        value={lang.name}
-                        onChange={(e) =>
-                          updateLanguage('learn', index, 'name', e.target.value)
-                        }
-                      >
-                        <option value=''>Select language</option>
-                        {LANGUAGES.map((language) => (
-                          <option key={language.code} value={language.name}>
-                            {language.name}
-                          </option>
-                        ))}
-                      </NativeSelectField>
-                    </NativeSelectRoot>
+                  <HStack key={index} gap={2} position='relative'>
+                    <Box flex={1}>
+                      <Menu.Root positioning={{ sameWidth: true, flip: true }}>
+                        <Menu.Trigger asChild>
+                          <Button
+                            variant='outline'
+                            size='md'
+                            width='full'
+                            justifyContent='space-between'
+                          >
+                            {lang.name || 'Select language'}
+                          </Button>
+                        </Menu.Trigger>
+                        <Portal>
+                          <Menu.Positioner>
+                            <Menu.Content maxH='300px' overflowY='auto'>
+                              {LANGUAGES.map((language) => (
+                                <Menu.Item
+                                  key={language.code}
+                                  value={language.name}
+                                  onClick={() =>
+                                    updateLanguage(
+                                      'learn',
+                                      index,
+                                      'name',
+                                      language.name,
+                                    )
+                                  }
+                                >
+                                  {language.name}
+                                </Menu.Item>
+                              ))}
+                            </Menu.Content>
+                          </Menu.Positioner>
+                        </Portal>
+                      </Menu.Root>
+                    </Box>
 
-                    <NativeSelectRoot size='md' flex={1}>
-                      <NativeSelectField
-                        value={lang.level}
-                        onChange={(e) =>
-                          updateLanguage(
-                            'learn',
-                            index,
-                            'level',
-                            e.target.value,
-                          )
-                        }
-                      >
-                        <option value=''>Select level</option>
-                        {LANGUAGE_LEVELS.map((level) => (
-                          <option key={level.value} value={level.value}>
-                            {level.label}
-                          </option>
-                        ))}
-                      </NativeSelectField>
-                    </NativeSelectRoot>
+                    <Box w='200px'>
+                      <Menu.Root positioning={{ sameWidth: true, flip: true }}>
+                        <Menu.Trigger asChild>
+                          <Button
+                            variant='outline'
+                            size='md'
+                            width='full'
+                            justifyContent='space-between'
+                          >
+                            {lang.level || 'Select level'}
+                          </Button>
+                        </Menu.Trigger>
+                        <Portal>
+                          <Menu.Positioner>
+                            <Menu.Content>
+                              {LANGUAGE_LEVELS.map((level) => (
+                                <Menu.Item
+                                  key={level.value}
+                                  value={level.value}
+                                  onClick={() =>
+                                    updateLanguage(
+                                      'learn',
+                                      index,
+                                      'level',
+                                      level.value,
+                                    )
+                                  }
+                                >
+                                  {level.label}
+                                </Menu.Item>
+                              ))}
+                            </Menu.Content>
+                          </Menu.Positioner>
+                        </Portal>
+                      </Menu.Root>
+                    </Box>
 
                     <IconButton
                       aria-label='Remove'
@@ -422,7 +544,7 @@ export default function ProfilePage() {
                 size='lg'
                 flex={1}
                 colorScheme='blue'
-                disabled={formik.isSubmitting}
+                disabled={formik.isSubmitting || hasIncompleteLanguages()}
               >
                 {formik.isSubmitting ? 'Saving...' : 'Save Changes'}
               </Button>
