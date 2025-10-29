@@ -75,4 +75,12 @@ export class AuthService {
     if (error) throw new Error(error.message);
     return true;
   }
+
+  async verifyEmail(userId: string) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { isVerified: true },
+    });
+    return true;
+  }
 }

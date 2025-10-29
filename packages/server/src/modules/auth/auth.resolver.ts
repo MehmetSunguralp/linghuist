@@ -42,4 +42,9 @@ export class AuthResolver {
   async deleteAccount(@Args('userId') userId: string) {
     return this.authService.deleteAccount(userId);
   }
+
+  @Mutation(() => Boolean)
+  async verifyEmail(@Args('userId') userId: string) {
+    return this.authService.verifyEmail(userId);
+  }
 }

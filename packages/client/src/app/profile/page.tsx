@@ -254,7 +254,7 @@ export default function ProfilePage() {
                   </Text>
                   <Input
                     name='name'
-                    placeholder='Your full name'
+                    placeholder='Your full name (Only visible to you)'
                     size='lg'
                     value={formik.values.name}
                     onChange={formik.handleChange}
@@ -273,7 +273,7 @@ export default function ProfilePage() {
                   </Text>
                   <Input
                     name='username'
-                    placeholder='unique_username'
+                    placeholder='Set a unique username'
                     size='lg'
                     value={formik.values.username}
                     onChange={formik.handleChange}
@@ -547,13 +547,6 @@ export default function ProfilePage() {
                 disabled={formik.isSubmitting || hasIncompleteLanguages()}
               >
                 {formik.isSubmitting ? 'Saving...' : 'Save Changes'}
-              </Button>
-              <Button
-                size='lg'
-                variant='outline'
-                onClick={() => router.push('/')}
-              >
-                Cancel
               </Button>
             </HStack>
           </VStack>

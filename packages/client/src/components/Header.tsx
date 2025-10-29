@@ -1,20 +1,42 @@
 'use client';
 
-import { Box, Flex, Stack, Spacer, Button, Link, Icon } from '@chakra-ui/react';
+import {
+  Box,
+  Flex,
+  Stack,
+  Spacer,
+  Button,
+  Link,
+  Icon,
+  Menu,
+  Portal,
+} from '@chakra-ui/react';
 import { FaCrown } from 'react-icons/fa';
 import { IoChatbubbleEllipsesOutline } from 'react-icons/io5';
 import { BsPeople } from 'react-icons/bs';
 import { AiOutlineCompass } from 'react-icons/ai';
 import { useRouter } from 'next/navigation';
-import { useSelector } from 'react-redux';
-import { RootState } from '@/store/store';
+import { useSelector, useDispatch } from 'react-redux';
+import { RootState, AppDispatch } from '@/store/store';
+import { clearAuthUser } from '@/store/reducers/authSlice';
 
 export const Header = () => {
   const router = useRouter();
+  const dispatch = useDispatch<AppDispatch>();
   const user = useSelector((state: RootState) => state.auth.user);
 
   const handleAuthButtons = (path: string) => {
     router.push(path);
+  };
+
+  const handleSignOut = () => {
+    // Clear session storage
+    sessionStorage.removeItem('access_token');
+    sessionStorage.removeItem('refresh_token');
+    // Clear Redux state
+    dispatch(clearAuthUser());
+    // Redirect to sign in
+    router.push('/signin');
   };
 
   return (
@@ -54,22 +76,47 @@ export const Header = () => {
         <Spacer />
 
         {user ? (
-          <Box
-            as='div'
-            w='40px'
-            h='40px'
-            borderRadius='full'
-            bg='blue.500'
-            display='flex'
-            alignItems='center'
-            justifyContent='center'
-            cursor='pointer'
-            onClick={() => router.push('/profile')}
-            fontWeight='bold'
-            color='white'
-          >
-            {user.email.charAt(0).toUpperCase()}
-          </Box>
+          <Menu.Root>
+            <Menu.Trigger asChild>
+              <Box
+                as='button'
+                w='40px'
+                h='40px'
+                borderRadius='full'
+                bg='blue.500'
+                display='flex'
+                alignItems='center'
+                justifyContent='center'
+                cursor='pointer'
+                fontWeight='bold'
+                color='white'
+                _hover={{ bg: 'blue.600' }}
+                transition='background 0.2s'
+              >
+                {user.email.charAt(0).toUpperCase()}
+              </Box>
+            </Menu.Trigger>
+            <Portal>
+              <Menu.Positioner>
+                <Menu.Content>
+                  <Menu.Item
+                    cursor={'pointer'}
+                    value='profile'
+                    onClick={() => router.push('/profile')}
+                  >
+                    Profile
+                  </Menu.Item>
+                  <Menu.Item
+                    value='signout'
+                    cursor={'pointer'}
+                    onClick={handleSignOut}
+                  >
+                    Sign Out
+                  </Menu.Item>
+                </Menu.Content>
+              </Menu.Positioner>
+            </Portal>
+          </Menu.Root>
         ) : (
           <Stack direction='row' gap={4}>
             <Button

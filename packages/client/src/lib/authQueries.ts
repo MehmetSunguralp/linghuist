@@ -57,3 +57,9 @@ export const UPDATE_PROFILE = gql`
     }
   }
 `;
+
+export const VERIFY_EMAIL = gql`
+  mutation VerifyEmail($userId: String!) {
+    verifyEmail(userId: $userId)
+  }
+`;

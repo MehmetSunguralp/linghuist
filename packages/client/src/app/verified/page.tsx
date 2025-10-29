@@ -13,7 +13,7 @@ import { useRouter } from 'next/navigation';
 import { useDispatch } from 'react-redux';
 import { setAuthUser } from '@/store/reducers/authSlice';
 import { client } from '@/lib/apolloClient';
-import { GET_CURRENT_USER } from '@/lib/authQueries';
+import { GET_CURRENT_USER, VERIFY_EMAIL } from '@/lib/authQueries';
 import { AppDispatch } from '@/store/store';
 import { MdOutlineError } from 'react-icons/md';
 import { FaCircleCheck } from 'react-icons/fa6';
@@ -68,6 +68,24 @@ export default function VerifiedPage() {
 
             if (data?.me) {
               dispatch(setAuthUser({ id: data.me.id, email: data.me.email }));
+
+              // Update isVerified in the database
+              try {
+                await client.mutate({
+                  mutation: VERIFY_EMAIL,
+                  variables: { userId: data.me.id },
+                  context: {
+                    headers: {
+                      Authorization: `Bearer ${accessToken}`,
+                    },
+                  },
+                });
+              } catch (verifyError) {
+                console.error(
+                  'Failed to update verification status:',
+                  verifyError,
+                );
+              }
             }
           } catch (fetchError) {
             console.error('Failed to fetch user data:', fetchError);
