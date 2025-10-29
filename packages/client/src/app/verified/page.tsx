@@ -1,12 +1,22 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Box, Flex, Heading, Text, VStack, Spinner } from '@chakra-ui/react';
+import {
+  Box,
+  Flex,
+  Heading,
+  Text,
+  VStack,
+  Spinner,
+  Icon,
+} from '@chakra-ui/react';
 import { useRouter } from 'next/navigation';
 import { useDispatch } from 'react-redux';
 import { setAuthUser } from '@/store/reducers/authSlice';
 import { client } from '@/lib/apolloClient';
 import { GET_CURRENT_USER } from '@/lib/authQueries';
 import { AppDispatch } from '@/store/store';
+import { MdOutlineError } from 'react-icons/md';
+import { FaCircleCheck } from 'react-icons/fa6';
 
 export default function VerifiedPage() {
   const router = useRouter();
@@ -19,7 +29,6 @@ export default function VerifiedPage() {
   useEffect(() => {
     const handleVerification = async () => {
       try {
-        // Extract tokens from URL hash fragment (format: #access_token=...&refresh_token=...)
         const hashParams = new URLSearchParams(
           window.location.hash.substring(1),
         );
@@ -66,7 +75,7 @@ export default function VerifiedPage() {
           setStatus('success');
 
           setTimeout(() => {
-            router.push('/');
+            router.push('/signin');
           }, 2000);
         } else {
           setStatus('error');
@@ -86,42 +95,28 @@ export default function VerifiedPage() {
       <Box maxW='500px' w='full' px={6}>
         <VStack gap={6} textAlign='center'>
           {status === 'loading' && (
-            <Box
-              p={8}
-              borderRadius='lg'
-              bg='blue.50'
-              borderWidth='2px'
-              borderColor='blue.200'
-            >
+            <Box>
               <VStack gap={4}>
-                <Spinner size='xl' color='blue.500' />
-                <Heading size='lg' color='blue.700'>
-                  Verifying Your Email
-                </Heading>
-                <Text color='gray.600'>
-                  Please wait while we confirm your account...
+                <Heading size='3xl'>Verifying Your Email</Heading>
+                <Spinner size='xl' />
+                <Text fontSize={'xl'} color='gray.500'>
+                  Please wait while we confirm your account
                 </Text>
               </VStack>
             </Box>
           )}
 
           {status === 'success' && (
-            <Box
-              p={8}
-              borderRadius='lg'
-              bg='green.50'
-              borderWidth='2px'
-              borderColor='green.200'
-            >
+            <Box>
               <VStack gap={4}>
-                <Box fontSize='4xl'>✅</Box>
-                <Heading size='lg' color='green.700'>
-                  Email Verified!
-                </Heading>
-                <Text color='gray.600'>
+                <Icon size='2xl' color='green'>
+                  <FaCircleCheck />
+                </Icon>
+                <Heading size='3xl'>Email Verified!</Heading>
+                <Text fontSize={'xl'} color='gray.300'>
                   Your account has been successfully verified.
                 </Text>
-                <Text color='gray.600' fontSize='sm'>
+                <Text fontSize={'xl'} color='gray.500'>
                   Redirecting you to the app...
                 </Text>
               </VStack>
@@ -129,21 +124,18 @@ export default function VerifiedPage() {
           )}
 
           {status === 'error' && (
-            <Box
-              p={8}
-              borderRadius='lg'
-              bg='red.50'
-              borderWidth='2px'
-              borderColor='red.200'
-            >
+            <Box>
               <VStack gap={4}>
-                <Box fontSize='4xl'>❌</Box>
-                <Heading size='lg' color='red.700'>
-                  Verification Failed
-                </Heading>
-                <Text color='gray.600'>{errorMessage}</Text>
+                <Icon size='2xl' color='red'>
+                  <MdOutlineError />
+                </Icon>
+                <Heading size='3xl'>Verification Failed</Heading>
+                <Text fontSize={'xl'} color='gray.300'>
+                  {errorMessage}
+                </Text>
                 <Text
-                  color='blue.600'
+                  fontSize={'xl'}
+                  color='gray.500'
                   cursor='pointer'
                   textDecoration='underline'
                   onClick={() => router.push('/signup')}

@@ -6,9 +6,12 @@ import { IoChatbubbleEllipsesOutline } from 'react-icons/io5';
 import { BsPeople } from 'react-icons/bs';
 import { AiOutlineCompass } from 'react-icons/ai';
 import { useRouter } from 'next/navigation';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/store/store';
 
 export const Header = () => {
   const router = useRouter();
+  const user = useSelector((state: RootState) => state.auth.user);
 
   const handleAuthButtons = (path: string) => {
     router.push(path);
@@ -50,12 +53,34 @@ export const Header = () => {
 
         <Spacer />
 
-        <Stack direction='row' gap={4}>
-          <Button variant='subtle' onClick={() => handleAuthButtons('signin')}>
-            Sign In
-          </Button>
-          <Button onClick={() => handleAuthButtons('signup')}>Sign Up</Button>
-        </Stack>
+        {user ? (
+          <Box
+            as='div'
+            w='40px'
+            h='40px'
+            borderRadius='full'
+            bg='blue.500'
+            display='flex'
+            alignItems='center'
+            justifyContent='center'
+            cursor='pointer'
+            onClick={() => router.push('/profile')}
+            fontWeight='bold'
+            color='white'
+          >
+            {user.email.charAt(0).toUpperCase()}
+          </Box>
+        ) : (
+          <Stack direction='row' gap={4}>
+            <Button
+              variant='subtle'
+              onClick={() => handleAuthButtons('signin')}
+            >
+              Sign In
+            </Button>
+            <Button onClick={() => handleAuthButtons('signup')}>Sign Up</Button>
+          </Stack>
+        )}
       </Flex>
     </Box>
   );

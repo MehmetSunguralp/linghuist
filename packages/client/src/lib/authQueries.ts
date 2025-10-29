@@ -19,6 +19,41 @@ export const GET_CURRENT_USER = gql`
       email
       name
       username
+      bio
+      avatarUrl
+      languagesKnown {
+        name
+        level
+        code
+      }
+      languagesLearn {
+        name
+        level
+        code
+      }
+    }
+  }
+`;
+
+export const UPDATE_PROFILE = gql`
+  mutation UpdateProfile($data: UpdateUserInput!) {
+    updateMe(data: $data) {
+      id
+      email
+      name
+      username
+      bio
+      avatarUrl
+      languagesKnown {
+        name
+        level
+        code
+      }
+      languagesLearn {
+        name
+        level
+        code
+      }
     }
   }
 `;

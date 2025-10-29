@@ -11,17 +11,27 @@ import {
 } from '@chakra-ui/react';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { signupUser } from '@/store/reducers/authSlice';
-import { AppDispatch } from '@/store/store';
+import { AppDispatch, RootState } from '@/store/store';
 import { toaster } from '@/components/ui/toaster';
 import { MdOutlineEmail } from 'react-icons/md';
-import { useState } from 'react';
-// import Image from 'next/image';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function SignupPage() {
   const dispatch = useDispatch<AppDispatch>();
+  const router = useRouter();
+  const user = useSelector((state: RootState) => state.auth.user);
   const [hasSignedUp, setHasSignedUp] = useState<boolean>(false);
+
+  // Redirect if already logged in (but allow showing confirmation after signup)
+  useEffect(() => {
+    if (user && !hasSignedUp && user.id) {
+      router.push('/discover');
+    }
+  }, [user, hasSignedUp, router]);
 
   const formik = useFormik({
     initialValues: { email: '', password: '', confirmPassword: '' },
@@ -66,8 +76,8 @@ export default function SignupPage() {
                 </Icon>
                 <Heading size='2xl'>Check Your Email</Heading>
                 <Text fontSize='xl'>We've sent a confirmation link to</Text>
-                <Text fontWeight='bold' color='gray.800'>
-                  {formik.values.email}
+                <Text fontWeight='bold' textDecoration={'underline'}>
+                  {formik.values.email || 'You are not supposed to see this!'}
                 </Text>
                 <Text fontSize='md' mt={2}>
                   Please check your inbox and click the confirmation link to
@@ -146,6 +156,15 @@ export default function SignupPage() {
                 >
                   Sign Up
                 </Button>
+
+                <Text textAlign='center' color='gray.600' mt={4}>
+                  Already have an account?{' '}
+                  <Link href='/signin'>
+                    <Text as='span' color='blue.500' cursor='pointer'>
+                      Sign in
+                    </Text>
+                  </Link>
+                </Text>
               </VStack>
             </form>
           </Box>
