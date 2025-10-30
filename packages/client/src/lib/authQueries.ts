@@ -23,6 +23,8 @@ export const GET_CURRENT_USER = gql`
       avatarUrl
       country
       age
+      role
+      isVerified
       languagesKnown {
         name
         level
@@ -65,5 +67,23 @@ export const UPDATE_PROFILE = gql`
 export const VERIFY_EMAIL = gql`
   mutation VerifyEmail($userId: String!) {
     verifyEmail(userId: $userId)
+  }
+`;
+
+export const RESET_PASSWORD = gql`
+  mutation ResetPassword($email: String!) {
+    resetPassword(email: $email)
+  }
+`;
+
+export const DELETE_ACCOUNT = gql`
+  mutation DeleteAccount($password: String!) {
+    deleteAccount(password: $password)
+  }
+`;
+
+export const RESEND_VERIFICATION = gql`
+  mutation ResendVerification($email: String!) {
+    resendVerification(email: $email)
   }
 `;

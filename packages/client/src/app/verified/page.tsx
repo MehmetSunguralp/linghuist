@@ -8,15 +8,24 @@ import {
   VStack,
   Spinner,
   Icon,
+  Button,
+  Dialog,
+  Portal,
+  Input,
 } from '@chakra-ui/react';
 import { useRouter } from 'next/navigation';
 import { useDispatch } from 'react-redux';
 import { setAuthUser } from '@/store/reducers/authSlice';
 import { client } from '@/lib/apolloClient';
-import { GET_CURRENT_USER, VERIFY_EMAIL } from '@/lib/authQueries';
+import {
+  GET_CURRENT_USER,
+  VERIFY_EMAIL,
+  RESEND_VERIFICATION,
+} from '@/lib/authQueries';
 import { AppDispatch } from '@/store/store';
 import { MdOutlineError } from 'react-icons/md';
 import { FaCircleCheck } from 'react-icons/fa6';
+import { toaster } from '@/components/ui/toaster';
 
 export default function VerifiedPage() {
   const router = useRouter();
@@ -25,6 +34,9 @@ export default function VerifiedPage() {
     'loading',
   );
   const [errorMessage, setErrorMessage] = useState('');
+  const [resendOpen, setResendOpen] = useState(false);
+  const [resendEmail, setResendEmail] = useState('');
+  const [resendSubmitting, setResendSubmitting] = useState(false);
 
   useEffect(() => {
     const handleVerification = async () => {
@@ -151,6 +163,9 @@ export default function VerifiedPage() {
                 <Text fontSize={'xl'} color='gray.300'>
                   {errorMessage}
                 </Text>
+                <Button colorScheme='blue' onClick={() => setResendOpen(true)}>
+                  Resend Verification Email
+                </Button>
                 <Text
                   fontSize={'xl'}
                   color='gray.500'
@@ -165,6 +180,76 @@ export default function VerifiedPage() {
           )}
         </VStack>
       </Box>
+
+      {/* Resend Verification Dialog */}
+      <Dialog.Root
+        open={resendOpen}
+        onOpenChange={(e) => setResendOpen(e.open)}
+        placement='center'
+      >
+        <Dialog.Backdrop />
+        <Portal>
+          <Dialog.Positioner>
+            <Dialog.Content>
+              <Dialog.Header>
+                <Dialog.Title>
+                  <Text fontSize={'2xl'}>Resend Verification Email</Text>
+                </Dialog.Title>
+              </Dialog.Header>
+              <Dialog.Body>
+                <VStack gap={3}>
+                  <Text color='gray.300' fontSize={'md'}>
+                    Enter your email address to receive a new verification link.
+                  </Text>
+                  <Input
+                    value={resendEmail}
+                    onChange={(e) => setResendEmail(e.target.value)}
+                    placeholder='you@example.com'
+                    type='email'
+                    size='lg'
+                  />
+                </VStack>
+              </Dialog.Body>
+              <Dialog.Footer>
+                <Button variant='ghost' onClick={() => setResendOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  colorScheme='blue'
+                  ml={2}
+                  disabled={
+                    resendSubmitting || !/^\S+@\S+\.\S+$/.test(resendEmail)
+                  }
+                  onClick={async () => {
+                    setResendSubmitting(true);
+                    try {
+                      await client.mutate({
+                        mutation: RESEND_VERIFICATION,
+                        variables: { email: resendEmail },
+                      });
+                      toaster.create({
+                        title: 'Verification email sent (check inbox)',
+                        type: 'success',
+                      });
+                      setResendOpen(false);
+                      setResendEmail('');
+                    } catch (e: any) {
+                      toaster.create({
+                        title: e.message || 'Failed to send verification email',
+                        type: 'error',
+                      });
+                    } finally {
+                      setResendSubmitting(false);
+                    }
+                  }}
+                >
+                  {resendSubmitting ? 'Sending...' : 'Send Email'}
+                </Button>
+              </Dialog.Footer>
+            </Dialog.Content>
+          </Dialog.Positioner>
+        </Portal>
+      </Dialog.Root>
     </Flex>
   );
 }

@@ -31,6 +31,7 @@ import {
   languageToCountryCode,
 } from '@/utils/languages';
 import FlagIcon from '@/components/FlagIcon';
+import { RESET_PASSWORD, DELETE_ACCOUNT } from '@/lib/authQueries';
 
 interface Language {
   name: string;
@@ -47,6 +48,7 @@ interface UserProfile {
   avatarUrl?: string;
   country?: string | null;
   age?: number | null;
+  role?: 'USER' | 'ADMIN' | 'MODERATOR';
   languagesKnown?: Language[];
   languagesLearn?: Language[];
 }
@@ -260,7 +262,9 @@ export default function ProfilePage() {
       <Box maxW='800px' w='full' px={6} mx='auto'>
         <VStack gap={2} mb={8} textAlign='center'>
           <Heading size='4xl'>Edit Profile</Heading>
-          <Text color='gray.600'>Update your personal information</Text>
+          <Text color='gray.400' fontSize={'lg'}>
+            Update your personal information
+          </Text>
         </VStack>
 
         <form onSubmit={formik.handleSubmit}>
@@ -763,9 +767,159 @@ export default function ProfilePage() {
                 {formik.isSubmitting ? 'Saving...' : 'Save Changes'}
               </Button>
             </HStack>
+
+            {/* Password Section */}
+            <Box>
+              <Heading size='lg' mb={4} mt={8}>
+                Password
+              </Heading>
+              <HStack justify={'space-between'}>
+                <Text color='gray.400'>
+                  You can send yourself a password reset email.
+                </Text>
+                <Button
+                  variant='outline'
+                  onClick={async () => {
+                    try {
+                      await client.mutate({
+                        mutation: RESET_PASSWORD,
+                        variables: { email: profile?.email },
+                      });
+                      toaster.create({
+                        title: 'Reset email sent',
+                        type: 'success',
+                      });
+                    } catch (e: any) {
+                      toaster.create({
+                        title: e.message || 'Failed to send reset email',
+                        type: 'error',
+                      });
+                    }
+                  }}
+                >
+                  Reset Password
+                </Button>
+              </HStack>
+            </Box>
+
+            {/* Danger Zone: Delete Account */}
+            {profile?.role !== 'ADMIN' && profile?.role !== 'MODERATOR' && (
+              <Box>
+                <Heading size='lg' mb={4} mt={8} color='red.400'>
+                  Danger Zone
+                </Heading>
+                <DeleteAccountSection />
+              </Box>
+            )}
           </VStack>
         </form>
       </Box>
     </Box>
+  );
+}
+
+function DeleteAccountSection() {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  return (
+    <>
+      <HStack justify={'space-between'}>
+        <Text color='gray.400'>
+          This action is irreversible. Your account and data will be permanently
+          deleted.
+        </Text>
+        <Button
+          colorPalette={'red'}
+          variant='outline'
+          onClick={() => setOpen(true)}
+        >
+          Delete Account
+        </Button>
+      </HStack>
+
+      {/* Hidden Menu root to satisfy types (not rendered) */}
+      <Box display='none'>
+        <Menu.Root open={open} onOpenChange={(e) => setOpen(e.open)}>
+          <Menu.Trigger />
+        </Menu.Root>
+      </Box>
+
+      <Portal>
+        {open && (
+          <Box
+            position='fixed'
+            inset={0}
+            display='flex'
+            alignItems='center'
+            justifyContent='center'
+            bg='blackAlpha.600'
+            zIndex={1000}
+          >
+            <Box
+              bg='bg'
+              p={6}
+              borderRadius='md'
+              minW={{ base: '90%', md: '480px' }}
+            >
+              <Heading size='md' mb={2}>
+                Confirm Deletion
+              </Heading>
+              <Text color='gray.400' mb={4}>
+                Enter your password to confirm account deletion.
+              </Text>
+              <Input
+                type='password'
+                placeholder='Password'
+                size='lg'
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                mb={4}
+              />
+              <HStack justify='flex-end'>
+                <Button variant='ghost' onClick={() => setOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  colorPalette={'red'}
+                  disabled={submitting || password.length === 0}
+                  onClick={async () => {
+                    setSubmitting(true);
+                    try {
+                      await client.mutate({
+                        mutation: DELETE_ACCOUNT,
+                        variables: { password },
+                      });
+                      toaster.create({
+                        title: 'Account deleted',
+                        type: 'success',
+                      });
+                      // Clear local auth
+                      if (typeof window !== 'undefined') {
+                        sessionStorage.removeItem('access_token');
+                        sessionStorage.removeItem('refresh_token');
+                        sessionStorage.removeItem('auth_user');
+                      }
+                      router.push('/signup');
+                    } catch (e: any) {
+                      toaster.create({
+                        title: e?.message || 'Failed to delete account',
+                        type: 'error',
+                      });
+                    } finally {
+                      setSubmitting(false);
+                    }
+                  }}
+                >
+                  {submitting ? 'Deleting...' : 'Delete'}
+                </Button>
+              </HStack>
+            </Box>
+          </Box>
+        )}
+      </Portal>
+    </>
   );
 }

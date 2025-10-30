@@ -1,4 +1,4 @@
-import { Resolver, Mutation, Args } from '@nestjs/graphql';
+import { Resolver, Mutation, Args, Context } from '@nestjs/graphql';
 import { AuthService } from './auth.service';
 
 @Resolver()
@@ -39,8 +39,12 @@ export class AuthResolver {
   }
 
   @Mutation(() => Boolean)
-  async deleteAccount(@Args('userId') userId: string) {
-    return this.authService.deleteAccount(userId);
+  async deleteAccount(
+    @Context('userId') userId: string,
+    @Args('password') password: string,
+  ) {
+    if (!userId) throw new Error('Unauthorized');
+    return this.authService.deleteAccount(userId, password);
   }
 
   @Mutation(() => Boolean)

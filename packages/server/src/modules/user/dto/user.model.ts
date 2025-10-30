@@ -41,6 +41,9 @@ export class User {
   @Field({ nullable: true })
   age?: number;
 
+  @Field(() => Boolean)
+  isVerified: boolean;
+
   @Field(() => [UserLanguage], { nullable: true })
   languagesKnown?: UserLanguage[];
 
