@@ -80,3 +80,68 @@ export const getLanguageName = (code: string): string => {
   );
   return language?.name || code;
 };
+
+// Map language codes (ISO 639) to representative country codes (ISO 3166) for flags
+export const languageToCountryCode = (languageCode: string): string => {
+  const code = (languageCode || '').toLowerCase();
+  const mapping: Record<string, string> = {
+    en: 'GB', // English
+    es: 'ES', // Spanish
+    pt: 'PT', // Portuguese
+    fr: 'FR', // French
+    de: 'DE', // German
+    it: 'IT', // Italian
+    tr: 'TR', // Turkish
+    ru: 'RU', // Russian
+    zh: 'CN', // Chinese (Simplified)
+    ja: 'JP', // Japanese
+    ko: 'KR', // Korean
+    ar: 'SA', // Arabic (Saudi Arabia)
+    hi: 'IN', // Hindi
+    bn: 'BD', // Bengali
+    ur: 'PK', // Urdu
+    fa: 'IR', // Persian
+    he: 'IL', // Hebrew
+    nl: 'NL', // Dutch
+    sv: 'SE', // Swedish
+    no: 'NO', // Norwegian
+    da: 'DK', // Danish
+    fi: 'FI', // Finnish
+    pl: 'PL', // Polish
+    cs: 'CZ', // Czech
+    sk: 'SK', // Slovak
+    sl: 'SI', // Slovenian
+    ro: 'RO', // Romanian
+    hu: 'HU', // Hungarian
+    el: 'GR', // Greek
+    uk: 'UA', // Ukrainian
+    vi: 'VN', // Vietnamese
+    th: 'TH', // Thai
+    id: 'ID', // Indonesian
+    ms: 'MY', // Malay
+    fil: 'PH', // Filipino
+    tl: 'PH', // Tagalog
+    sw: 'TZ', // Swahili
+    af: 'ZA', // Afrikaans
+    sq: 'AL', // Albanian
+    hy: 'AM', // Armenian
+    eu: 'ES', // Basque (Spain)
+    ca: 'ES', // Catalan (Spain)
+    hr: 'HR', // Croatian
+    et: 'EE', // Estonian
+    ka: 'GE', // Georgian
+    is: 'IS', // Icelandic
+    ga: 'IE', // Irish
+    lv: 'LV', // Latvian
+    lt: 'LT', // Lithuanian
+    ml: 'IN', // Malayalam
+    mr: 'IN', // Marathi
+    pa: 'IN', // Punjabi
+    ta: 'IN', // Tamil
+    te: 'IN', // Telugu
+    cy: 'GB', // Welsh (UK)
+  };
+
+  const country = mapping[code] || code.substring(0, 2).toUpperCase();
+  return country;
+};

@@ -19,12 +19,18 @@ import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '@/store/store';
 import { toaster } from '@/components/ui/toaster';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { client } from '@/lib/apolloClient';
 import { GET_CURRENT_USER, UPDATE_PROFILE } from '@/lib/authQueries';
 import { setAuthUser } from '@/store/reducers/authSlice';
 import { MdDelete, MdAdd } from 'react-icons/md';
-import { LANGUAGES, LANGUAGE_LEVELS, getLanguageCode } from '@/utils/languages';
+import {
+  LANGUAGES,
+  LANGUAGE_LEVELS,
+  getLanguageCode,
+  languageToCountryCode,
+} from '@/utils/languages';
+import FlagIcon from '@/components/FlagIcon';
 
 interface Language {
   name: string;
@@ -39,6 +45,8 @@ interface UserProfile {
   username?: string;
   bio?: string;
   avatarUrl?: string;
+  country?: string | null;
+  age?: number | null;
   languagesKnown?: Language[];
   languagesLearn?: Language[];
 }
@@ -70,6 +78,8 @@ export default function ProfilePage() {
             username: data.me.username || '',
             bio: data.me.bio || '',
             avatarUrl: data.me.avatarUrl || '',
+            country: data.me.country || '',
+            age: typeof data.me.age === 'number' ? String(data.me.age) : '',
             languagesKnown: data.me.languagesKnown || [],
             languagesLearn: data.me.languagesLearn || [],
           });
@@ -94,19 +104,30 @@ export default function ProfilePage() {
       username: '',
       bio: '',
       avatarUrl: '',
+      country: '',
+      age: '',
       languagesKnown: [] as Language[],
       languagesLearn: [] as Language[],
     },
     validationSchema: Yup.object({
-      name: Yup.string(),
+      name: Yup.string().required('Name is required'),
       username: Yup.string()
         .min(3, 'Username must be at least 3 characters')
         .matches(
           /^[a-zA-Z0-9_]+$/,
           'Username can only contain letters, numbers, and underscores',
-        ),
-      bio: Yup.string().max(500, 'Bio must be less than 500 characters'),
+        )
+        .required('Username is required'),
+      bio: Yup.string()
+        .max(500, 'Bio must be less than 500 characters')
+        .required('Bio is required'),
       avatarUrl: Yup.string().url('Must be a valid URL'),
+      country: Yup.string().required('Country is required'),
+      age: Yup.number()
+        .typeError('Age must be a number')
+        .min(16, 'Minimum age is 16')
+        .max(99, 'Maximum age is 99')
+        .required('Age is required'),
     }),
     onSubmit: async (values) => {
       try {
@@ -151,6 +172,8 @@ export default function ProfilePage() {
               username: values.username || null,
               bio: values.bio || null,
               avatarUrl: values.avatarUrl || null,
+              country: values.country ? values.country : null,
+              age: values.age ? Number(values.age) : null,
               languagesKnown:
                 cleanedLanguagesKnown.length > 0 ? cleanedLanguagesKnown : null,
               languagesLearn:
@@ -324,6 +347,153 @@ export default function ProfilePage() {
                     </Text>
                   )}
                 </Box>
+
+                <HStack gap={4}>
+                  <Box flex={1}>
+                    <Text mb={1} fontWeight='medium'>
+                      Country
+                    </Text>
+                    {/* Country dropdown */}
+                    <Menu.Root positioning={{ sameWidth: true, flip: true }}>
+                      <Menu.Trigger asChild>
+                        <Button
+                          variant='outline'
+                          size='lg'
+                          width='full'
+                          justifyContent='space-between'
+                        >
+                          <HStack gap={2}>
+                            {formik.values.country &&
+                              formik.values.country.length === 2 && (
+                                <FlagIcon
+                                  countryCode={formik.values.country}
+                                  size={18}
+                                />
+                              )}
+                            <Text>
+                              {(() => {
+                                const dn =
+                                  typeof window !== 'undefined'
+                                    ? new Intl.DisplayNames(['en'], {
+                                        type: 'region',
+                                      })
+                                    : null;
+                                if (!formik.values.country)
+                                  return 'Select country';
+                                const code =
+                                  formik.values.country.toUpperCase();
+                                return code.length === 2 && dn
+                                  ? dn.of(code)
+                                  : formik.values.country;
+                              })()}
+                            </Text>
+                          </HStack>
+                        </Button>
+                      </Menu.Trigger>
+                      <Portal>
+                        <Menu.Positioner>
+                          <Menu.Content maxH='300px' overflowY='auto'>
+                            {[
+                              'TR',
+                              'DE',
+                              'US',
+                              'GB',
+                              'CA',
+                              'FR',
+                              'ES',
+                              'PT',
+                              'IT',
+                              'NL',
+                              'BE',
+                              'SE',
+                              'NO',
+                              'DK',
+                              'FI',
+                              'PL',
+                              'CZ',
+                              'SK',
+                              'SI',
+                              'RO',
+                              'HU',
+                              'GR',
+                              'UA',
+                              'RU',
+                              'IN',
+                              'JP',
+                              'CN',
+                              'KR',
+                              'BR',
+                              'AR',
+                              'MX',
+                              'AU',
+                              'NZ',
+                              'IE',
+                              'IL',
+                              'SA',
+                              'AE',
+                              'ZA',
+                              'EG',
+                              'PK',
+                              'BD',
+                              'VN',
+                              'TH',
+                              'ID',
+                              'MY',
+                              'PH',
+                            ].map((code) => (
+                              <Menu.Item
+                                key={code}
+                                value={code}
+                                onClick={() =>
+                                  formik.setFieldValue('country', code)
+                                }
+                              >
+                                <HStack gap={2}>
+                                  <FlagIcon countryCode={code} size={16} />
+                                  <Text>
+                                    {typeof window !== 'undefined'
+                                      ? new Intl.DisplayNames(['en'], {
+                                          type: 'region',
+                                        }).of(code)
+                                      : code}
+                                  </Text>
+                                </HStack>
+                              </Menu.Item>
+                            ))}
+                          </Menu.Content>
+                        </Menu.Positioner>
+                      </Portal>
+                    </Menu.Root>
+                    {formik.touched.country && formik.errors.country && (
+                      <Text color='red.500' fontSize='sm' mt={1}>
+                        {formik.errors.country as string}
+                      </Text>
+                    )}
+                  </Box>
+
+                  <Box w='200px'>
+                    <Text mb={1} fontWeight='medium'>
+                      Age
+                    </Text>
+                    <Input
+                      name='age'
+                      placeholder='e.g., 29'
+                      size='lg'
+                      inputMode='numeric'
+                      type='number'
+                      min={16}
+                      max={99}
+                      value={formik.values.age}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                    />
+                    {formik.touched.age && formik.errors.age && (
+                      <Text color='red.500' fontSize='sm' mt={1}>
+                        {formik.errors.age as string}
+                      </Text>
+                    )}
+                  </Box>
+                </HStack>
               </VStack>
             </Box>
 
@@ -354,7 +524,21 @@ export default function ProfilePage() {
                             width='full'
                             justifyContent='space-between'
                           >
-                            {lang.name || 'Select language'}
+                            <HStack gap={2}>
+                              <FlagIcon
+                                countryCode={
+                                  lang.code
+                                    ? languageToCountryCode(lang.code)
+                                    : lang.name
+                                      ? languageToCountryCode(
+                                          getLanguageCode(lang.name),
+                                        )
+                                      : undefined
+                                }
+                                size={16}
+                              />
+                              <Text>{lang.name || 'Select language'}</Text>
+                            </HStack>
                           </Button>
                         </Menu.Trigger>
                         <Portal>
@@ -373,7 +557,15 @@ export default function ProfilePage() {
                                     )
                                   }
                                 >
-                                  {language.name}
+                                  <HStack gap={2}>
+                                    <FlagIcon
+                                      countryCode={languageToCountryCode(
+                                        language.code,
+                                      )}
+                                      size={16}
+                                    />
+                                    <Text>{language.name}</Text>
+                                  </HStack>
                                 </Menu.Item>
                               ))}
                             </Menu.Content>
@@ -391,7 +583,7 @@ export default function ProfilePage() {
                             width='full'
                             justifyContent='space-between'
                           >
-                            {lang.level || 'Select level'}
+                            <Text>{lang.level || 'Select level'}</Text>
                           </Button>
                         </Menu.Trigger>
                         <Portal>
@@ -459,7 +651,21 @@ export default function ProfilePage() {
                             width='full'
                             justifyContent='space-between'
                           >
-                            {lang.name || 'Select language'}
+                            <HStack gap={2}>
+                              <FlagIcon
+                                countryCode={
+                                  lang.code
+                                    ? languageToCountryCode(lang.code)
+                                    : lang.name
+                                      ? languageToCountryCode(
+                                          getLanguageCode(lang.name),
+                                        )
+                                      : undefined
+                                }
+                                size={16}
+                              />
+                              <Text>{lang.name || 'Select language'}</Text>
+                            </HStack>
                           </Button>
                         </Menu.Trigger>
                         <Portal>
@@ -478,7 +684,15 @@ export default function ProfilePage() {
                                     )
                                   }
                                 >
-                                  {language.name}
+                                  <HStack gap={2}>
+                                    <FlagIcon
+                                      countryCode={languageToCountryCode(
+                                        language.code,
+                                      )}
+                                      size={16}
+                                    />
+                                    <Text>{language.name}</Text>
+                                  </HStack>
                                 </Menu.Item>
                               ))}
                             </Menu.Content>

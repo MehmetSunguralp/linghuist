@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { AppDispatch } from '@/store/store';
-import { setAuthUser } from '@/store/reducers/authSlice';
+import { setAuthInitialized, setAuthUser } from '@/store/reducers/authSlice';
 import { client } from '@/lib/apolloClient';
 import { GET_CURRENT_USER } from '@/lib/authQueries';
 
@@ -10,6 +10,20 @@ export const useAuthInit = () => {
 
   useEffect(() => {
     const initAuth = async () => {
+      // Hydrate from cached user immediately if present for instant UI
+      const cachedUser = sessionStorage.getItem('auth_user');
+      if (cachedUser) {
+        try {
+          const parsed = JSON.parse(cachedUser) as {
+            id: string;
+            email: string;
+          };
+          if (parsed?.id && parsed?.email) {
+            dispatch(setAuthUser({ id: parsed.id, email: parsed.email }));
+          }
+        } catch {}
+      }
+
       // Check if we have a token in sessionStorage
       const token = sessionStorage.getItem('access_token');
 
@@ -33,6 +47,9 @@ export const useAuthInit = () => {
           sessionStorage.removeItem('refresh_token');
         }
       }
+
+      // If there is no token, or after attempting refresh, mark initialized
+      dispatch(setAuthInitialized(true));
     };
 
     initAuth();

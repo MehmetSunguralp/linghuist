@@ -7,11 +7,6 @@ export const metadata = {
   description: 'Removes boundaries in language learning.',
 };
 
-const inter = Inter({
-  variable: '--font-inter',
-  subsets: ['latin'],
-});
-
 export default function RootLayout({
   children,
 }: {

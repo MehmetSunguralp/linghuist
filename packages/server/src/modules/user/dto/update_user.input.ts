@@ -26,6 +26,12 @@ export class UpdateUserInput {
   @Field({ nullable: true })
   avatarUrl?: string;
 
+  @Field({ nullable: true })
+  country?: string; // ISO-3166 alpha-2 preferred
+
+  @Field({ nullable: true })
+  age?: number;
+
   @Field(() => [UserLanguageInput], { nullable: true })
   languagesKnown?: UserLanguageInput[];
 

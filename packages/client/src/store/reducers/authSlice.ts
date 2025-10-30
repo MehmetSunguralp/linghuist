@@ -7,7 +7,12 @@ import {
 } from '@/lib/authQueries';
 import { AuthState, SignupInput } from '@/types/AuthTypes';
 
-const initialState: AuthState = { user: null, loading: false, error: null };
+const initialState: AuthState = {
+  user: null,
+  loading: false,
+  error: null,
+  initialized: false,
+};
 
 export const signupUser = createAsyncThunk<{ email: string }, SignupInput>(
   'auth/signup',
@@ -50,6 +55,14 @@ export const loginUser = createAsyncThunk<
     });
 
     if (userData.data?.me) {
+      // Cache minimal user in sessionStorage for fast hydration on next load
+      sessionStorage.setItem(
+        'auth_user',
+        JSON.stringify({
+          id: userData.data.me.id,
+          email: userData.data.me.email,
+        }),
+      );
       return { id: userData.data.me.id, email: userData.data.me.email };
     }
   }
@@ -66,6 +79,9 @@ const authSlice = createSlice({
       action: PayloadAction<{ id: string; email: string }>,
     ) => {
       state.user = action.payload;
+    },
+    setAuthInitialized: (state, action: PayloadAction<boolean>) => {
+      state.initialized = action.payload;
     },
     clearAuthUser: (state) => {
       state.user = null;
@@ -108,5 +124,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { setAuthUser, clearAuthUser } = authSlice.actions;
+export const { setAuthUser, setAuthInitialized, clearAuthUser } =
+  authSlice.actions;
 export default authSlice.reducer;

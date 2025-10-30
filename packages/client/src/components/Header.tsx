@@ -24,6 +24,7 @@ export const Header = () => {
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
   const user = useSelector((state: RootState) => state.auth.user);
+  const initialized = useSelector((state: RootState) => state.auth.initialized);
 
   const handleAuthButtons = (path: string) => {
     router.push(path);
@@ -33,6 +34,7 @@ export const Header = () => {
     // Clear session storage
     sessionStorage.removeItem('access_token');
     sessionStorage.removeItem('refresh_token');
+    sessionStorage.removeItem('auth_user');
     // Clear Redux state
     dispatch(clearAuthUser());
     // Redirect to sign in
@@ -75,7 +77,15 @@ export const Header = () => {
 
         <Spacer />
 
-        {user ? (
+        {!initialized ? (
+          <Box
+            w='40px'
+            h='40px'
+            borderRadius='full'
+            bg='gray.200'
+            _dark={{ bg: 'gray.700' }}
+          />
+        ) : user ? (
           <Menu.Root>
             <Menu.Trigger asChild>
               <Box

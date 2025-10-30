@@ -49,6 +49,8 @@ export class UserService {
       bio: data.bio,
       avatarUrl: data.avatarUrl,
       name: data.name,
+      country: (data as any).country,
+      age: (data as any).age,
     };
 
     if (data.languagesKnown) {

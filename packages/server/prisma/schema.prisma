@@ -21,6 +21,8 @@ model User {
   role                   Role              @default(USER)
   avatarUrl              String?
   bio                    String?
+  country                String?
+  age                    Int?
   languagesKnown         Language[]        @relation("KnownLanguages")
   languagesLearn         Language[]        @relation("LearnLanguages")
   posts                  Post[]

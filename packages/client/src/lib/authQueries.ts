@@ -21,6 +21,8 @@ export const GET_CURRENT_USER = gql`
       username
       bio
       avatarUrl
+      country
+      age
       languagesKnown {
         name
         level
@@ -44,6 +46,8 @@ export const UPDATE_PROFILE = gql`
       username
       bio
       avatarUrl
+      country
+      age
       languagesKnown {
         name
         level
