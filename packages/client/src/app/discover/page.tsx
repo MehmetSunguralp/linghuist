@@ -38,16 +38,16 @@ export default function Discover() {
 
   if (loading) {
     return (
-      <Box maxW='1200px' mx='auto' px={6} py={6}>
-        <Text>Loading users...</Text>
+      <Box maxW='1200px' mx='auto' px={{ base: 3, sm: 6 }} py={{ base: 4, sm: 6 }}>
+        <Text fontSize={{ base: 'sm', sm: 'md' }}>Loading users...</Text>
       </Box>
     );
   }
 
   if (error) {
     return (
-      <Box maxW='1200px' mx='auto' px={6} py={6}>
-        <Text color='red.500'>{error}</Text>
+      <Box maxW='1200px' mx='auto' px={{ base: 3, sm: 6 }} py={{ base: 4, sm: 6 }}>
+        <Text color='red.500' fontSize={{ base: 'sm', sm: 'md' }}>{error}</Text>
       </Box>
     );
   }
@@ -57,17 +57,20 @@ export default function Discover() {
   );
 
   return (
-    <Box maxW='1200px' mx='auto' px={6} py={6}>
-      <Heading size='xl' mb={4}>
+    <Box maxW='1200px' mx='auto' px={{ base: 3, sm: 6 }} py={{ base: 4, sm: 6 }}>
+      <Heading 
+        size={{ base: 'lg', sm: 'xl' }} 
+        mb={{ base: 3, sm: 4 }}
+      >
         Discover
       </Heading>
       <Grid
         templateColumns={{
           base: '1fr',
-          md: 'repeat(2, 1fr)',
+          sm: 'repeat(2, 1fr)',
           lg: 'repeat(3, 1fr)',
         }}
-        gap={4}
+        gap={{ base: 3, sm: 4 }}
       >
         {filtered.map((u: any) => (
           <GridItem key={u.id}>

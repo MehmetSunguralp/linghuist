@@ -118,31 +118,31 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <Flex h='calc(100vh - 64px)' align='center' justify='center'>
-      <Box maxW='600px' w='full' px={6}>
-        <VStack gap={2} mb={8} textAlign='center'>
-          <Heading size='4xl'>Reset Password</Heading>
-          <Text color='gray.600'>Set a new password for your account</Text>
+    <Flex h='calc(100vh - 64px)' align='center' justify='center' px={{ base: 3, sm: 6 }}>
+      <Box maxW='600px' w='full' px={{ base: 4, sm: 6 }}>
+        <VStack gap={{ base: 1, sm: 2 }} mb={{ base: 6, sm: 8 }} textAlign='center'>
+          <Heading size={{ base: '2xl', sm: '3xl', md: '4xl' }}>Reset Password</Heading>
+          <Text color='gray.600' fontSize={{ base: 'sm', sm: 'md' }}>Set a new password for your account</Text>
         </VStack>
 
         {!supabase && (
-          <Text color='red.400' mb={4}>
+          <Text color='red.400' mb={4} fontSize={{ base: 'xs', sm: 'sm' }}>
             Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and
             NEXT_PUBLIC_SUPABASE_ANON_KEY.
           </Text>
         )}
 
-        <VStack gap={4} align='stretch'>
+        <VStack gap={{ base: 3, sm: 4 }} align='stretch'>
           <Box>
             <Input
               name='newPassword'
               placeholder='New password'
-              size='lg'
+              size={{ base: 'md', sm: 'lg' }}
               type='password'
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
             />
-            <Text color='gray.500' fontSize='sm' mt={1}>
+            <Text color='gray.500' fontSize={{ base: 'xs', sm: 'sm' }} mt={1}>
               Must be at least 8 characters and different from your previous
               password.
             </Text>
@@ -151,7 +151,7 @@ export default function ResetPasswordPage() {
             <Input
               name='confirmPassword'
               placeholder='Confirm new password'
-              size='lg'
+              size={{ base: 'md', sm: 'lg' }}
               type='password'
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
@@ -159,7 +159,7 @@ export default function ResetPasswordPage() {
           </Box>
 
           <Button
-            size='lg'
+            size={{ base: 'md', sm: 'lg' }}
             colorScheme='blue'
             onClick={onSubmit}
             disabled={!canSubmit || submitting}
@@ -168,7 +168,7 @@ export default function ResetPasswordPage() {
           </Button>
 
           {!accessToken && (
-            <Text color='red.400' fontSize='sm'>
+            <Text color='red.400' fontSize={{ base: 'xs', sm: 'sm' }}>
               Invalid or expired link. Request a new reset email.
             </Text>
           )}

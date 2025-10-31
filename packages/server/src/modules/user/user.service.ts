@@ -99,7 +99,20 @@ export class UserService {
 
     const created = await prisma.friendRequest.create({
       data: { senderId, receiverId, status: FriendRequestStatus.PENDING },
-      include: { sender: true, receiver: true },
+      include: {
+        sender: {
+          include: {
+            languagesKnown: true,
+            languagesLearn: true,
+          },
+        },
+        receiver: {
+          include: {
+            languagesKnown: true,
+            languagesLearn: true,
+          },
+        },
+      },
     });
 
     return this.normalizeFriendRequest(created);
@@ -124,7 +137,20 @@ export class UserService {
           ? FriendRequestStatus.ACCEPTED
           : FriendRequestStatus.REJECTED,
       },
-      include: { sender: true, receiver: true },
+      include: {
+        sender: {
+          include: {
+            languagesKnown: true,
+            languagesLearn: true,
+          },
+        },
+        receiver: {
+          include: {
+            languagesKnown: true,
+            languagesLearn: true,
+          },
+        },
+      },
     });
 
     return this.normalizeFriendRequest(updated);
@@ -149,9 +175,68 @@ export class UserService {
   async getPendingRequests(userId: string) {
     const pending = await prisma.friendRequest.findMany({
       where: { receiverId: userId, status: FriendRequestStatus.PENDING },
-      include: { sender: true },
+      include: {
+        sender: {
+          include: {
+            languagesKnown: true,
+            languagesLearn: true,
+          },
+        },
+        receiver: {
+          include: {
+            languagesKnown: true,
+            languagesLearn: true,
+          },
+        },
+      },
     });
     return pending.map((p) => this.normalizeFriendRequest(p));
+  }
+
+  async getSentRequests(userId: string) {
+    const sent = await prisma.friendRequest.findMany({
+      where: { senderId: userId, status: FriendRequestStatus.PENDING },
+      include: {
+        sender: {
+          include: {
+            languagesKnown: true,
+            languagesLearn: true,
+          },
+        },
+        receiver: {
+          include: {
+            languagesKnown: true,
+            languagesLearn: true,
+          },
+        },
+      },
+    });
+    return sent.map((p) => this.normalizeFriendRequest(p));
+  }
+
+  async removeFriend(userId: string, friendId: string) {
+    if (userId === friendId)
+      throw new Error("Can't remove yourself as a friend.");
+
+    // Find the friend request (either direction)
+    const friendRequest = await prisma.friendRequest.findFirst({
+      where: {
+        OR: [
+          { senderId: userId, receiverId: friendId },
+          { senderId: friendId, receiverId: userId },
+        ],
+        status: FriendRequestStatus.ACCEPTED,
+      },
+    });
+
+    if (!friendRequest) throw new Error('Friend relationship not found.');
+
+    // Delete the friend request to remove the friendship
+    await prisma.friendRequest.delete({
+      where: { id: friendRequest.id },
+    });
+
+    return { id: friendRequest.id };
   }
 
   async findLanguageMatches(userId: string) {

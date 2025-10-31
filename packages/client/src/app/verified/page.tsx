@@ -121,15 +121,15 @@ export default function VerifiedPage() {
   }, [router, dispatch]);
 
   return (
-    <Flex h='calc(100vh - 64px)' align='center' justify='center'>
-      <Box maxW='500px' w='full' px={6}>
-        <VStack gap={6} textAlign='center'>
+    <Flex h='calc(100vh - 64px)' align='center' justify='center' px={{ base: 3, sm: 6 }}>
+      <Box maxW='500px' w='full' px={{ base: 4, sm: 6 }}>
+        <VStack gap={{ base: 4, sm: 6 }} textAlign='center'>
           {status === 'loading' && (
             <Box>
-              <VStack gap={4}>
-                <Heading size='3xl'>Verifying Your Email</Heading>
-                <Spinner size='xl' />
-                <Text fontSize={'xl'} color='gray.500'>
+              <VStack gap={{ base: 3, sm: 4 }}>
+                <Heading size={{ base: 'xl', sm: '2xl', md: '3xl' }}>Verifying Your Email</Heading>
+                <Spinner size={{ base: 'lg', sm: 'xl' }} />
+                <Text fontSize={{ base: 'sm', sm: 'lg', md: 'xl' }} color='gray.500'>
                   Please wait while we confirm your account
                 </Text>
               </VStack>
@@ -138,15 +138,15 @@ export default function VerifiedPage() {
 
           {status === 'success' && (
             <Box>
-              <VStack gap={4}>
-                <Icon size='2xl' color='green'>
+              <VStack gap={{ base: 3, sm: 4 }}>
+                <Icon size={{ base: 'xl', sm: '2xl' }} color='green'>
                   <FaCircleCheck />
                 </Icon>
-                <Heading size='3xl'>Email Verified!</Heading>
-                <Text fontSize={'xl'} color='gray.300'>
+                <Heading size={{ base: 'xl', sm: '2xl', md: '3xl' }}>Email Verified!</Heading>
+                <Text fontSize={{ base: 'sm', sm: 'lg', md: 'xl' }} color='gray.300'>
                   Your account has been successfully verified.
                 </Text>
-                <Text fontSize={'xl'} color='gray.500'>
+                <Text fontSize={{ base: 'sm', sm: 'lg', md: 'xl' }} color='gray.500'>
                   Redirecting you to the app...
                 </Text>
               </VStack>
@@ -155,19 +155,24 @@ export default function VerifiedPage() {
 
           {status === 'error' && (
             <Box>
-              <VStack gap={4}>
-                <Icon size='2xl' color='red'>
+              <VStack gap={{ base: 3, sm: 4 }}>
+                <Icon size={{ base: 'xl', sm: '2xl' }} color='red'>
                   <MdOutlineError />
                 </Icon>
-                <Heading size='3xl'>Verification Failed</Heading>
-                <Text fontSize={'xl'} color='gray.300'>
+                <Heading size={{ base: 'xl', sm: '2xl', md: '3xl' }}>Verification Failed</Heading>
+                <Text fontSize={{ base: 'sm', sm: 'lg', md: 'xl' }} color='gray.300'>
                   {errorMessage}
                 </Text>
-                <Button colorScheme='blue' onClick={() => setResendOpen(true)}>
+                <Button 
+                  colorScheme='blue' 
+                  onClick={() => setResendOpen(true)}
+                  size={{ base: 'md', sm: 'lg' }}
+                  width={{ base: 'full', sm: 'auto' }}
+                >
                   Resend Verification Email
                 </Button>
                 <Text
-                  fontSize={'xl'}
+                  fontSize={{ base: 'sm', sm: 'lg', md: 'xl' }}
                   color='gray.500'
                   cursor='pointer'
                   textDecoration='underline'
@@ -190,15 +195,15 @@ export default function VerifiedPage() {
         <Dialog.Backdrop />
         <Portal>
           <Dialog.Positioner>
-            <Dialog.Content>
+            <Dialog.Content maxW={{ base: '90vw', sm: 'md' }}>
               <Dialog.Header>
                 <Dialog.Title>
-                  <Text fontSize={'2xl'}>Resend Verification Email</Text>
+                  <Text fontSize={{ base: 'lg', sm: 'xl', md: '2xl' }}>Resend Verification Email</Text>
                 </Dialog.Title>
               </Dialog.Header>
               <Dialog.Body>
                 <VStack gap={3}>
-                  <Text color='gray.300' fontSize={'md'}>
+                  <Text color='gray.300' fontSize={{ base: 'xs', sm: 'sm', md: 'md' }}>
                     Enter your email address to receive a new verification link.
                   </Text>
                   <Input
@@ -206,17 +211,23 @@ export default function VerifiedPage() {
                     onChange={(e) => setResendEmail(e.target.value)}
                     placeholder='you@example.com'
                     type='email'
-                    size='lg'
+                    size={{ base: 'md', sm: 'lg' }}
                   />
                 </VStack>
               </Dialog.Body>
-              <Dialog.Footer>
-                <Button variant='ghost' onClick={() => setResendOpen(false)}>
+              <Dialog.Footer flexDirection={{ base: 'column', sm: 'row' }} gap={{ base: 2, sm: 0 }}>
+                <Button 
+                  variant='ghost' 
+                  onClick={() => setResendOpen(false)}
+                  width={{ base: 'full', sm: 'auto' }}
+                  order={{ base: 2, sm: 1 }}
+                >
                   Cancel
                 </Button>
                 <Button
                   colorScheme='blue'
-                  ml={2}
+                  ml={{ base: 0, sm: 2 }}
+                  width={{ base: 'full', sm: 'auto' }}
                   disabled={
                     resendSubmitting || !/^\S+@\S+\.\S+$/.test(resendEmail)
                   }

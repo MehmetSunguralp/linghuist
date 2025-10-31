@@ -74,6 +74,22 @@ export class UserResolver {
     return this.userService.getPendingRequests(userId);
   }
 
+  @Query(() => [FriendRequest])
+  async sentFriendRequests(@Context('userId') userId: string) {
+    if (!userId) throw new Error('Unauthorized');
+    return this.userService.getSentRequests(userId);
+  }
+
+  @Mutation(() => Boolean)
+  async removeFriend(
+    @Context('userId') userId: string,
+    @Args('friendId') friendId: string,
+  ) {
+    if (!userId) throw new Error('Unauthorized');
+    await this.userService.removeFriend(userId, friendId);
+    return true;
+  }
+
   @Query(() => [User])
   async matchUsers(@Context('userId') userId: string) {
     if (!userId) throw new Error('Unauthorized');

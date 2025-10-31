@@ -9,6 +9,7 @@ import {
   Wrap,
   WrapItem,
 } from '@chakra-ui/react';
+import { useRouter } from 'next/navigation';
 import FlagIcon from './FlagIcon';
 import { languageToCountryCode } from '@/utils/languages';
 
@@ -32,6 +33,7 @@ const regionNames =
     : null;
 
 export const UserCard = ({
+  id,
   name,
   email,
   username,
@@ -41,6 +43,7 @@ export const UserCard = ({
   languagesKnown,
   languagesLearn,
 }: UserCardProps) => {
+  const router = useRouter();
   const displayName = name || username || email;
   const getCountryCode = (value?: string | null): string | null => {
     if (!value) return null;
@@ -79,7 +82,21 @@ export const UserCard = ({
       : country || undefined;
 
   return (
-    <Box borderWidth='1px' borderRadius='lg' p={4} shadow='sm'>
+    <Box
+      borderWidth='1px'
+      borderRadius='lg'
+      p={4}
+      shadow='sm'
+      cursor='pointer'
+      transition='all 0.2s'
+      _hover={{
+        shadow: 'md',
+        transform: 'translateY(-2px)',
+        borderColor: 'blue.300',
+        _dark: { borderColor: 'blue.600' },
+      }}
+      onClick={() => router.push(`/profile/${id}`)}
+    >
       <HStack gap={3} align='start'>
         <Box position='relative'>
           <Avatar.Root>

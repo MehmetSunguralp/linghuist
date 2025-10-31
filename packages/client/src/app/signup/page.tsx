@@ -59,27 +59,32 @@ export default function SignupPage() {
   });
 
   return (
-    <Flex h='calc(100vh - 64px)' align='center' justify='center'>
-      <Box maxW='600px' w='full' px={6}>
+    <Flex h='calc(100vh - 64px)' align='center' justify='center' px={{ base: 3, sm: 6 }}>
+      <Box maxW='600px' w='full' px={{ base: 4, sm: 6 }}>
         {hasSignedUp ? (
-          <VStack gap={6} textAlign='center'>
+          <VStack gap={{ base: 4, sm: 6 }} textAlign='center'>
             <Box
-              p={8}
+              p={{ base: 4, sm: 6, md: 8 }}
               borderRadius='lg'
               // bg='green.50'
               // borderWidth='2px'
               // borderColor='green.200'
             >
-              <VStack gap={4}>
-                <Icon size='2xl'>
+              <VStack gap={{ base: 3, sm: 4 }}>
+                <Icon size={{ base: 'xl', sm: '2xl' }}>
                   <MdOutlineEmail />
                 </Icon>
-                <Heading size='2xl'>Check Your Email</Heading>
-                <Text fontSize='xl'>We've sent a confirmation link to</Text>
-                <Text fontWeight='bold' textDecoration={'underline'}>
+                <Heading size={{ base: 'xl', sm: '2xl' }}>Check Your Email</Heading>
+                <Text fontSize={{ base: 'sm', sm: 'lg', md: 'xl' }}>We've sent a confirmation link to</Text>
+                <Text 
+                  fontWeight='bold' 
+                  textDecoration={'underline'}
+                  fontSize={{ base: 'xs', sm: 'sm', md: 'md' }}
+                  wordBreak='break-all'
+                >
                   {formik.values.email || 'You are not supposed to see this!'}
                 </Text>
-                <Text fontSize='md' mt={2}>
+                <Text fontSize={{ base: 'xs', sm: 'sm', md: 'md' }} mt={2}>
                   Please check your inbox and click the confirmation link to
                   activate your account.
                 </Text>
@@ -88,24 +93,24 @@ export default function SignupPage() {
           </VStack>
         ) : (
           <Box>
-            <VStack gap={2} mb={8} textAlign='center'>
-              <Heading size='4xl'>Create Account</Heading>
-              <Text color='gray.600'>Sign up to get started</Text>
+            <VStack gap={{ base: 1, sm: 2 }} mb={{ base: 6, sm: 8 }} textAlign='center'>
+              <Heading size={{ base: '2xl', sm: '3xl', md: '4xl' }}>Create Account</Heading>
+              <Text color='gray.600' fontSize={{ base: 'sm', sm: 'md' }}>Sign up to get started</Text>
             </VStack>
 
             <form onSubmit={formik.handleSubmit}>
-              <VStack gap={4} align='stretch'>
+              <VStack gap={{ base: 3, sm: 4 }} align='stretch'>
                 <Box>
                   <Input
                     name='email'
                     placeholder='Email'
-                    size='lg'
+                    size={{ base: 'md', sm: 'lg' }}
                     value={formik.values.email}
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
                   />
                   {formik.touched.email && formik.errors.email && (
-                    <Text color='red.500' fontSize='sm' mt={1}>
+                    <Text color='red.500' fontSize={{ base: 'xs', sm: 'sm' }} mt={1}>
                       {formik.errors.email}
                     </Text>
                   )}
@@ -115,14 +120,14 @@ export default function SignupPage() {
                   <Input
                     name='password'
                     placeholder='Password'
-                    size='lg'
+                    size={{ base: 'md', sm: 'lg' }}
                     type='password'
                     value={formik.values.password}
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
                   />
                   {formik.touched.password && formik.errors.password && (
-                    <Text color='red.500' fontSize='sm' mt={1}>
+                    <Text color='red.500' fontSize={{ base: 'xs', sm: 'sm' }} mt={1}>
                       {formik.errors.password}
                     </Text>
                   )}
@@ -132,7 +137,7 @@ export default function SignupPage() {
                   <Input
                     name='confirmPassword'
                     placeholder='Confirm Password'
-                    size='lg'
+                    size={{ base: 'md', sm: 'lg' }}
                     type='password'
                     value={formik.values.confirmPassword}
                     onChange={formik.handleChange}
@@ -140,7 +145,7 @@ export default function SignupPage() {
                   />
                   {formik.touched.confirmPassword &&
                     formik.errors.confirmPassword && (
-                      <Text color='red.500' fontSize='sm' mt={1}>
+                      <Text color='red.500' fontSize={{ base: 'xs', sm: 'sm' }} mt={1}>
                         {formik.errors.confirmPassword}
                       </Text>
                     )}
@@ -148,7 +153,7 @@ export default function SignupPage() {
 
                 <Button
                   type='submit'
-                  size='lg'
+                  size={{ base: 'md', sm: 'lg' }}
                   width='full'
                   colorScheme='blue'
                   disabled={formik.isSubmitting}
@@ -157,7 +162,12 @@ export default function SignupPage() {
                   Sign Up
                 </Button>
 
-                <Text textAlign='center' color='gray.600' mt={4}>
+                <Text 
+                  textAlign='center' 
+                  color='gray.600' 
+                  mt={4}
+                  fontSize={{ base: 'xs', sm: 'sm' }}
+                >
                   Already have an account?{' '}
                   <Link href='/signin'>
                     <Text as='span' color='blue.500' cursor='pointer'>

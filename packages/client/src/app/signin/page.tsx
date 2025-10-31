@@ -62,26 +62,26 @@ export default function SignInPage() {
 
   return (
     <>
-      <Flex h='calc(100vh - 64px)' align='center' justify='center'>
-        <Box maxW='600px' w='full' px={6}>
-          <VStack gap={2} mb={8} textAlign='center'>
-            <Heading size='4xl'>Welcome Back</Heading>
-            <Text color='gray.400'>Sign in to continue</Text>
+      <Flex h='calc(100vh - 64px)' align='center' justify='center' px={{ base: 3, sm: 6 }}>
+        <Box maxW='600px' w='full' px={{ base: 4, sm: 6 }}>
+          <VStack gap={{ base: 1, sm: 2 }} mb={{ base: 6, sm: 8 }} textAlign='center'>
+            <Heading size={{ base: '2xl', sm: '3xl', md: '4xl' }}>Welcome Back</Heading>
+            <Text color='gray.400' fontSize={{ base: 'sm', sm: 'md' }}>Sign in to continue</Text>
           </VStack>
 
           <form onSubmit={formik.handleSubmit}>
-            <VStack gap={4} align='stretch'>
+            <VStack gap={{ base: 3, sm: 4 }} align='stretch'>
               <Box>
                 <Input
                   name='email'
                   placeholder='Email'
-                  size='lg'
+                  size={{ base: 'md', sm: 'lg' }}
                   value={formik.values.email}
                   onChange={formik.handleChange}
                   onBlur={formik.handleBlur}
                 />
                 {formik.touched.email && formik.errors.email && (
-                  <Text color='red.500' fontSize='sm' mt={1}>
+                  <Text color='red.500' fontSize={{ base: 'xs', sm: 'sm' }} mt={1}>
                     {formik.errors.email}
                   </Text>
                 )}
@@ -91,14 +91,14 @@ export default function SignInPage() {
                 <Input
                   name='password'
                   placeholder='Password'
-                  size='lg'
+                  size={{ base: 'md', sm: 'lg' }}
                   type='password'
                   value={formik.values.password}
                   onChange={formik.handleChange}
                   onBlur={formik.handleBlur}
                 />
                 {formik.touched.password && formik.errors.password && (
-                  <Text color='red.500' fontSize='sm' mt={1}>
+                  <Text color='red.500' fontSize={{ base: 'xs', sm: 'sm' }} mt={1}>
                     {formik.errors.password}
                   </Text>
                 )}
@@ -107,6 +107,7 @@ export default function SignInPage() {
                   color='blue.500'
                   cursor='pointer'
                   textDecoration={'underline'}
+                  fontSize={{ base: 'xs', sm: 'sm' }}
                   onClick={() => setForgotOpen(true)}
                 >
                   Forgot password?
@@ -115,7 +116,7 @@ export default function SignInPage() {
 
               <Button
                 type='submit'
-                size='lg'
+                size={{ base: 'md', sm: 'lg' }}
                 width='full'
                 colorScheme='blue'
                 disabled={formik.isSubmitting}
@@ -124,7 +125,12 @@ export default function SignInPage() {
                 Sign In
               </Button>
 
-              <Text textAlign='center' color='gray.400' mt={4}>
+              <Text 
+                textAlign='center' 
+                color='gray.400' 
+                mt={4}
+                fontSize={{ base: 'xs', sm: 'sm' }}
+              >
                 Don't have an account?{' '}
                 <Link href='/signup'>
                   <Text
@@ -151,15 +157,15 @@ export default function SignInPage() {
         <Dialog.Backdrop />
         <Portal>
           <Dialog.Positioner>
-            <Dialog.Content>
+            <Dialog.Content maxW={{ base: '90vw', sm: 'md' }}>
               <Dialog.Header>
                 <Dialog.Title>
-                  <Text fontSize={'2xl'}>Reset Your Password</Text>
+                  <Text fontSize={{ base: 'lg', sm: 'xl', md: '2xl' }}>Reset Your Password</Text>
                 </Dialog.Title>
               </Dialog.Header>
               <Dialog.Body>
                 <VStack gap={3}>
-                  <Text color='gray.300' fontSize={'md'}>
+                  <Text color='gray.300' fontSize={{ base: 'xs', sm: 'sm', md: 'md' }}>
                     Enter your account email to receive a reset link.
                   </Text>
                   <Input
@@ -167,17 +173,23 @@ export default function SignInPage() {
                     onChange={(e) => setForgotEmail(e.target.value)}
                     placeholder='you@example.com'
                     type='email'
-                    size='lg'
+                    size={{ base: 'md', sm: 'lg' }}
                   />
                 </VStack>
               </Dialog.Body>
-              <Dialog.Footer>
-                <Button variant='ghost' onClick={() => setForgotOpen(false)}>
+              <Dialog.Footer flexDirection={{ base: 'column', sm: 'row' }} gap={{ base: 2, sm: 0 }}>
+                <Button 
+                  variant='ghost' 
+                  onClick={() => setForgotOpen(false)}
+                  width={{ base: 'full', sm: 'auto' }}
+                  order={{ base: 2, sm: 1 }}
+                >
                   Cancel
                 </Button>
                 <Button
                   colorScheme='blue'
-                  ml={2}
+                  ml={{ base: 0, sm: 2 }}
+                  width={{ base: 'full', sm: 'auto' }}
                   disabled={
                     forgotSubmitting || !/^\S+@\S+\.\S+$/.test(forgotEmail)
                   }

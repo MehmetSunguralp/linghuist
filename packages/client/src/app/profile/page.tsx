@@ -12,6 +12,11 @@ import {
   IconButton,
   Menu,
   Portal,
+  Dialog,
+  Icon,
+  Grid,
+  GridItem,
+  Tabs,
 } from '@chakra-ui/react';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
@@ -22,8 +27,18 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { client } from '@/lib/apolloClient';
 import { GET_CURRENT_USER, UPDATE_PROFILE } from '@/lib/authQueries';
+import {
+  GET_FRIENDS,
+  GET_USER_BY_ID,
+  SEND_FRIEND_REQUEST,
+  REMOVE_FRIEND,
+  GET_PENDING_FRIEND_REQUESTS,
+  GET_SENT_FRIEND_REQUESTS,
+  RESPOND_FRIEND_REQUEST,
+} from '@/lib/userQueries';
 import { setAuthUser } from '@/store/reducers/authSlice';
-import { MdDelete, MdAdd } from 'react-icons/md';
+import { MdDelete, MdAdd, MdEdit, MdClose } from 'react-icons/md';
+import { useParams } from 'next/navigation';
 import {
   LANGUAGES,
   LANGUAGE_LEVELS,
@@ -32,6 +47,7 @@ import {
 } from '@/utils/languages';
 import FlagIcon from '@/components/FlagIcon';
 import { RESET_PASSWORD, DELETE_ACCOUNT } from '@/lib/authQueries';
+import UserCard from '@/components/UserCard';
 
 interface Language {
   name: string;
@@ -56,9 +72,85 @@ interface UserProfile {
 export default function ProfilePage() {
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
+  const params = useParams();
   const user = useSelector((state: RootState) => state.auth.user);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [friends, setFriends] = useState<any[]>([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [friendsDialogOpen, setFriendsDialogOpen] = useState(false);
+  const [isFriend, setIsFriend] = useState(false);
+  const [hasPendingRequest, setHasPendingRequest] = useState(false);
+  const [friendActionLoading, setFriendActionLoading] = useState(false);
+
+  const profileUserId = params?.id as string | undefined;
+  const isOwnProfile = !profileUserId || profileUserId === user?.id;
+
+  // Fetch friends count on mount
+  useEffect(() => {
+    if (user) {
+      const fetchFriends = async () => {
+        try {
+          const { data } = await client.query<{ friends: any[] }>({
+            query: GET_FRIENDS,
+            fetchPolicy: 'cache-first',
+          });
+          setFriends(data?.friends || []);
+        } catch (error) {
+          console.error('Failed to fetch friends:', error);
+        }
+      };
+      fetchFriends();
+    }
+  }, [user]);
+
+  // Check friend status and pending requests
+  useEffect(() => {
+    if (!user || !profileUserId || isOwnProfile) return;
+
+    const checkFriendStatus = async () => {
+      try {
+        const [friendsData, sentRequestsData, receivedRequestsData] =
+          await Promise.all([
+            client.query<{ friends: any[] }>({
+              query: GET_FRIENDS,
+              fetchPolicy: 'cache-first',
+            }),
+            client.query<{ sentFriendRequests: any[] }>({
+              query: GET_SENT_FRIEND_REQUESTS,
+              fetchPolicy: 'cache-first',
+            }),
+            client.query<{ pendingFriendRequests: any[] }>({
+              query: GET_PENDING_FRIEND_REQUESTS,
+              fetchPolicy: 'cache-first',
+            }),
+          ]);
+
+        // Check if already friends
+        const friendsList = friendsData.data?.friends || [];
+        const friend = friendsList.find((f) => f.id === profileUserId);
+        setIsFriend(!!friend);
+
+        // Check if there's a pending request (sent or received)
+        const sentRequests = sentRequestsData.data?.sentFriendRequests || [];
+        const receivedRequests =
+          receivedRequestsData.data?.pendingFriendRequests || [];
+
+        const hasSentRequest = sentRequests.some(
+          (req) => req.receiver?.id === profileUserId,
+        );
+        const hasReceivedRequest = receivedRequests.some(
+          (req) => req.sender?.id === profileUserId,
+        );
+
+        setHasPendingRequest(hasSentRequest || hasReceivedRequest);
+      } catch (error) {
+        console.error('Failed to check friend status:', error);
+      }
+    };
+
+    checkFriendStatus();
+  }, [user, profileUserId, isOwnProfile]);
 
   useEffect(() => {
     if (!user) {
@@ -68,23 +160,40 @@ export default function ProfilePage() {
 
     const fetchProfile = async () => {
       try {
-        const { data } = await client.query<{ me: UserProfile }>({
-          query: GET_CURRENT_USER,
-          fetchPolicy: 'network-only',
-        });
+        let profileData: UserProfile | null = null;
 
-        if (data?.me) {
-          setProfile(data.me);
-          formik.setValues({
-            name: data.me.name || '',
-            username: data.me.username || '',
-            bio: data.me.bio || '',
-            avatarUrl: data.me.avatarUrl || '',
-            country: data.me.country || '',
-            age: typeof data.me.age === 'number' ? String(data.me.age) : '',
-            languagesKnown: data.me.languagesKnown || [],
-            languagesLearn: data.me.languagesLearn || [],
+        if (isOwnProfile) {
+          const { data } = await client.query<{ me: UserProfile }>({
+            query: GET_CURRENT_USER,
+            fetchPolicy: 'network-only',
           });
+          profileData = data?.me || null;
+        } else if (profileUserId) {
+          const { data } = await client.query<{ user: UserProfile }>({
+            query: GET_USER_BY_ID,
+            variables: { id: profileUserId },
+            fetchPolicy: 'network-only',
+          });
+          profileData = data?.user || null;
+        }
+
+        if (profileData) {
+          setProfile(profileData);
+          if (isOwnProfile) {
+            formik.setValues({
+              name: profileData.name || '',
+              username: profileData.username || '',
+              bio: profileData.bio || '',
+              avatarUrl: profileData.avatarUrl || '',
+              country: profileData.country || '',
+              age:
+                typeof profileData.age === 'number'
+                  ? String(profileData.age)
+                  : '',
+              languagesKnown: profileData.languagesKnown || [],
+              languagesLearn: profileData.languagesLearn || [],
+            });
+          }
         }
       } catch (error) {
         console.error('Failed to fetch profile:', error);
@@ -98,7 +207,7 @@ export default function ProfilePage() {
     };
 
     fetchProfile();
-  }, [user, router]);
+  }, [user, router, profileUserId, isOwnProfile]);
 
   const formik = useFormik({
     initialValues: {
@@ -467,581 +576,1440 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <Flex h='calc(100vh - 64px)' align='center' justify='center'>
-        <Text>Loading profile...</Text>
+        <Text fontSize={{ base: 'sm', sm: 'md' }}>Loading profile...</Text>
       </Flex>
     );
   }
 
   return (
-    <Box h='calc(100vh - 64px)' overflowY='auto' pt={8} pb={8}>
-      <Box maxW='800px' w='full' px={6} mx='auto'>
-        <VStack gap={2} mb={8} textAlign='center'>
-          <Heading size='4xl'>Edit Profile</Heading>
-          <Text color='gray.400' fontSize={'lg'}>
-            Update your personal information
+    <Box
+      h='calc(100vh - 64px)'
+      overflowY='auto'
+      pt={{ base: 4, sm: 8 }}
+      pb={{ base: 4, sm: 8 }}
+    >
+      <Box maxW='800px' w='full' px={{ base: 3, sm: 6 }} mx='auto'>
+        <VStack
+          gap={{ base: 3, sm: 4 }}
+          mb={{ base: 6, sm: 8 }}
+          textAlign='center'
+        >
+          {/* Large Avatar */}
+          {profile?.avatarUrl && (
+            <Box
+              w={{ base: '120px', sm: '150px', md: '180px' }}
+              h={{ base: '120px', sm: '150px', md: '180px' }}
+              borderRadius='full'
+              overflow='hidden'
+              border='4px solid'
+              borderColor='gray.200'
+              _dark={{ borderColor: 'gray.700' }}
+              mx='auto'
+              mb={2}
+              position='relative'
+            >
+              <img
+                src={profile.avatarUrl}
+                alt={profile.name || 'Profile'}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+              />
+            </Box>
+          )}
+
+          <Heading size={{ base: '2xl', sm: '3xl', md: '4xl' }}>
+            {isOwnProfile
+              ? 'Account'
+              : profile?.name || profile?.username || 'Profile'}
+          </Heading>
+          <Text color='gray.400' fontSize={{ base: 'sm', sm: 'md', md: 'lg' }}>
+            {isOwnProfile
+              ? 'Update your personal information'
+              : profile?.bio || 'User profile'}
           </Text>
+
+          {/* Friend action button and Start Chat - only show on other users' profiles */}
+          {!isOwnProfile && profileUserId && (
+            <HStack gap={3} justify='center' flexWrap='wrap'>
+              <Button
+                colorScheme={isFriend ? 'red' : 'green'}
+                size={{ base: 'md', sm: 'lg' }}
+                onClick={async () => {
+                  setFriendActionLoading(true);
+                  try {
+                    if (isFriend) {
+                      await client.mutate({
+                        mutation: REMOVE_FRIEND,
+                        variables: { friendId: profileUserId },
+                      });
+                      setIsFriend(false);
+                      toaster.create({
+                        title: 'Friend removed',
+                        type: 'success',
+                      });
+                    } else {
+                      // Send friend request
+                      await client.mutate({
+                        mutation: SEND_FRIEND_REQUEST,
+                        variables: { receiverId: profileUserId },
+                      });
+                      setHasPendingRequest(true);
+                      toaster.create({
+                        title: 'Friend request sent',
+                        type: 'success',
+                      });
+                      // Refresh friend status check
+                      const checkStatus = async () => {
+                        try {
+                          const sentRequestsData = await client.query<{
+                            sentFriendRequests: any[];
+                          }>({
+                            query: GET_SENT_FRIEND_REQUESTS,
+                            fetchPolicy: 'network-only',
+                          });
+                          const sentRequests =
+                            sentRequestsData.data?.sentFriendRequests || [];
+                          const hasSentRequest = sentRequests.some(
+                            (req) => req.receiver?.id === profileUserId,
+                          );
+                          setHasPendingRequest(hasSentRequest);
+                        } catch (error) {
+                          console.error(
+                            'Failed to refresh request status:',
+                            error,
+                          );
+                        }
+                      };
+                      checkStatus();
+                    }
+                  } catch (error: any) {
+                    toaster.create({
+                      title: error.message || 'Failed to update friend status',
+                      type: 'error',
+                    });
+                  } finally {
+                    setFriendActionLoading(false);
+                  }
+                }}
+                disabled={friendActionLoading || hasPendingRequest}
+              >
+                <HStack gap={2}>
+                  {isFriend ? (
+                    <>
+                      <Icon>
+                        <MdClose />
+                      </Icon>
+                      <Text>Remove Friend</Text>
+                    </>
+                  ) : hasPendingRequest ? (
+                    <Text>Request Sent</Text>
+                  ) : (
+                    <Text>Add Friend</Text>
+                  )}
+                </HStack>
+              </Button>
+              {isFriend && (
+                <Button
+                  colorScheme='blue'
+                  size={{ base: 'md', sm: 'lg' }}
+                  onClick={() => {
+                    // TODO: Implement chat functionality
+                    toaster.create({
+                      title: 'Chat feature coming soon',
+                      type: 'info',
+                    });
+                  }}
+                >
+                  Start Chat
+                </Button>
+              )}
+            </HStack>
+          )}
+
+          {/* Friends count - only show on own profile */}
+          {isOwnProfile && (
+            <Text
+              as='button'
+              onClick={async () => {
+                setFriendsDialogOpen(true);
+                if (friends.length === 0 && !friendsLoading) {
+                  setFriendsLoading(true);
+                  try {
+                    const { data } = await client.query<{ friends: any[] }>({
+                      query: GET_FRIENDS,
+                      fetchPolicy: 'network-only',
+                    });
+                    setFriends(data?.friends || []);
+                  } catch (error) {
+                    console.error('Failed to fetch friends:', error);
+                    toaster.create({
+                      title: 'Failed to load friends',
+                      type: 'error',
+                    });
+                  } finally {
+                    setFriendsLoading(false);
+                  }
+                }
+              }}
+              textDecoration='underline'
+              cursor='pointer'
+              color='blue.500'
+              fontSize={{ base: 'sm', sm: 'md' }}
+              _hover={{ color: 'blue.600' }}
+              mt={1}
+            >
+              {friends.length} {friends.length === 1 ? 'Friend' : 'Friends'}
+            </Text>
+          )}
         </VStack>
 
-        <form onSubmit={formik.handleSubmit}>
-          <VStack gap={6} align='stretch'>
-            {/* Basic Info Section */}
-            <Box>
-              <Heading size='lg' mb={4}>
-                Basic Information
-              </Heading>
-              <VStack gap={4} align='stretch'>
-                <Box>
-                  <Text mb={1} fontWeight='medium'>
-                    Name
-                  </Text>
-                  <Input
-                    name='name'
-                    placeholder='Your full name (Only visible to you)'
-                    size='lg'
-                    value={formik.values.name}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                  />
-                  {formik.touched.name && formik.errors.name && (
-                    <Text color='red.500' fontSize='sm' mt={1}>
-                      {formik.errors.name}
+        {isOwnProfile ? (
+          <form onSubmit={formik.handleSubmit}>
+            <VStack gap={{ base: 4, sm: 6 }} align='stretch'>
+              {/* Basic Info Section */}
+              <Box>
+                <Heading
+                  size={{ base: 'md', sm: 'lg' }}
+                  mb={{ base: 3, sm: 4 }}
+                >
+                  Basic Information
+                </Heading>
+                <VStack gap={{ base: 3, sm: 4 }} align='stretch'>
+                  <Box>
+                    <Text
+                      mb={1}
+                      fontWeight='medium'
+                      fontSize={{ base: 'sm', sm: 'md' }}
+                    >
+                      Name
                     </Text>
-                  )}
-                </Box>
-
-                <Box>
-                  <Text mb={1} fontWeight='medium'>
-                    Username
-                  </Text>
-                  <Input
-                    name='username'
-                    placeholder='Set a unique username'
-                    size='lg'
-                    value={formik.values.username}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                  />
-                  {formik.touched.username && formik.errors.username && (
-                    <Text color='red.500' fontSize='sm' mt={1}>
-                      {formik.errors.username}
-                    </Text>
-                  )}
-                </Box>
-
-                <Box>
-                  <Text mb={1} fontWeight='medium'>
-                    Bio
-                  </Text>
-                  <Textarea
-                    name='bio'
-                    placeholder='Tell us about yourself...'
-                    size='lg'
-                    value={formik.values.bio}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                    rows={4}
-                  />
-                  {formik.touched.bio && formik.errors.bio && (
-                    <Text color='red.500' fontSize='sm' mt={1}>
-                      {formik.errors.bio}
-                    </Text>
-                  )}
-                </Box>
-
-                <Box>
-                  <Text mb={1} fontWeight='medium'>
-                    Avatar URL
-                  </Text>
-                  <Input
-                    name='avatarUrl'
-                    placeholder='https://example.com/avatar.jpg'
-                    size='lg'
-                    value={formik.values.avatarUrl}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                  />
-                  {formik.touched.avatarUrl && formik.errors.avatarUrl && (
-                    <Text color='red.500' fontSize='sm' mt={1}>
-                      {formik.errors.avatarUrl}
-                    </Text>
-                  )}
-                </Box>
-
-                <HStack gap={4}>
-                  <Box flex={1}>
-                    <Text mb={1} fontWeight='medium'>
-                      Country
-                    </Text>
-                    {/* Country dropdown */}
-                    <Menu.Root positioning={{ sameWidth: true, flip: true }}>
-                      <Menu.Trigger asChild>
-                        <Button
-                          variant='outline'
-                          size='lg'
-                          width='full'
-                          justifyContent='space-between'
-                        >
-                          <HStack gap={2}>
-                            {formik.values.country &&
-                              formik.values.country.length === 2 && (
-                                <FlagIcon
-                                  countryCode={formik.values.country}
-                                  size={18}
-                                />
-                              )}
-                            <Text>
-                              {(() => {
-                                const dn =
-                                  typeof window !== 'undefined'
-                                    ? new Intl.DisplayNames(['en'], {
-                                        type: 'region',
-                                      })
-                                    : null;
-                                if (!formik.values.country)
-                                  return 'Select country';
-                                const code =
-                                  formik.values.country.toUpperCase();
-                                return code.length === 2 && dn
-                                  ? dn.of(code)
-                                  : formik.values.country;
-                              })()}
-                            </Text>
-                          </HStack>
-                        </Button>
-                      </Menu.Trigger>
-                      <Portal>
-                        <Menu.Positioner>
-                          <Menu.Content maxH='300px' overflowY='auto'>
-                            {[
-                              'TR',
-                              'DE',
-                              'US',
-                              'GB',
-                              'CA',
-                              'FR',
-                              'ES',
-                              'PT',
-                              'IT',
-                              'NL',
-                              'BE',
-                              'SE',
-                              'NO',
-                              'DK',
-                              'FI',
-                              'PL',
-                              'CZ',
-                              'SK',
-                              'SI',
-                              'RO',
-                              'HU',
-                              'GR',
-                              'UA',
-                              'RU',
-                              'IN',
-                              'JP',
-                              'CN',
-                              'KR',
-                              'BR',
-                              'AR',
-                              'MX',
-                              'AU',
-                              'NZ',
-                              'IE',
-                              'IL',
-                              'SA',
-                              'AE',
-                              'ZA',
-                              'EG',
-                              'PK',
-                              'BD',
-                              'VN',
-                              'TH',
-                              'ID',
-                              'MY',
-                              'PH',
-                            ].map((code) => (
-                              <Menu.Item
-                                key={code}
-                                value={code}
-                                onClick={() =>
-                                  formik.setFieldValue('country', code)
-                                }
-                              >
-                                <HStack gap={2}>
-                                  <FlagIcon countryCode={code} size={16} />
-                                  <Text>
-                                    {typeof window !== 'undefined'
-                                      ? new Intl.DisplayNames(['en'], {
-                                          type: 'region',
-                                        }).of(code)
-                                      : code}
-                                  </Text>
-                                </HStack>
-                              </Menu.Item>
-                            ))}
-                          </Menu.Content>
-                        </Menu.Positioner>
-                      </Portal>
-                    </Menu.Root>
-                    {formik.touched.country && formik.errors.country && (
-                      <Text color='red.500' fontSize='sm' mt={1}>
-                        {formik.errors.country as string}
+                    <Box position='relative'>
+                      <Input
+                        name='name'
+                        placeholder='Your full name (Only visible to you)'
+                        size={{ base: 'md', sm: 'lg' }}
+                        value={formik.values.name}
+                        onChange={formik.handleChange}
+                        onBlur={formik.handleBlur}
+                        pr={10}
+                      />
+                      <Box
+                        position='absolute'
+                        right={3}
+                        top='50%'
+                        transform='translateY(-50%)'
+                        pointerEvents='none'
+                      >
+                        <Icon color='gray.400' size='md'>
+                          <MdEdit />
+                        </Icon>
+                      </Box>
+                    </Box>
+                    {formik.touched.name && formik.errors.name && (
+                      <Text
+                        color='red.500'
+                        fontSize={{ base: 'xs', sm: 'sm' }}
+                        mt={1}
+                      >
+                        {formik.errors.name}
                       </Text>
                     )}
                   </Box>
 
-                  <Box w='200px'>
-                    <Text mb={1} fontWeight='medium'>
-                      Age
+                  <Box>
+                    <Text
+                      mb={1}
+                      fontWeight='medium'
+                      fontSize={{ base: 'sm', sm: 'md' }}
+                    >
+                      Username
                     </Text>
-                    <Input
-                      name='age'
-                      placeholder='e.g., 29'
-                      size='lg'
-                      inputMode='numeric'
-                      type='number'
-                      min={16}
-                      max={99}
-                      value={formik.values.age}
-                      onChange={formik.handleChange}
-                      onBlur={formik.handleBlur}
-                    />
-                    {formik.touched.age && formik.errors.age && (
-                      <Text color='red.500' fontSize='sm' mt={1}>
-                        {formik.errors.age as string}
+                    <Box position='relative'>
+                      <Input
+                        name='username'
+                        placeholder='Set a unique username'
+                        size={{ base: 'md', sm: 'lg' }}
+                        value={formik.values.username}
+                        onChange={formik.handleChange}
+                        onBlur={formik.handleBlur}
+                        pr={10}
+                      />
+                      <Box
+                        position='absolute'
+                        right={3}
+                        top='50%'
+                        transform='translateY(-50%)'
+                        pointerEvents='none'
+                      >
+                        <Icon color='gray.400' size='md'>
+                          <MdEdit />
+                        </Icon>
+                      </Box>
+                    </Box>
+                    {formik.touched.username && formik.errors.username && (
+                      <Text
+                        color='red.500'
+                        fontSize={{ base: 'xs', sm: 'sm' }}
+                        mt={1}
+                      >
+                        {formik.errors.username}
                       </Text>
                     )}
+                  </Box>
+
+                  <Box>
+                    <Text
+                      mb={1}
+                      fontWeight='medium'
+                      fontSize={{ base: 'sm', sm: 'md' }}
+                    >
+                      Bio
+                    </Text>
+                    <Box position='relative'>
+                      <Textarea
+                        name='bio'
+                        placeholder='Tell us about yourself...'
+                        size={{ base: 'md', sm: 'lg' }}
+                        value={formik.values.bio}
+                        onChange={formik.handleChange}
+                        onBlur={formik.handleBlur}
+                        rows={4}
+                        pr={10}
+                      />
+                      <Box
+                        position='absolute'
+                        right={2}
+                        top={2}
+                        pointerEvents='none'
+                      >
+                        <Icon color='gray.400' size='md'>
+                          <MdEdit />
+                        </Icon>
+                      </Box>
+                    </Box>
+                    {formik.touched.bio && formik.errors.bio && (
+                      <Text
+                        color='red.500'
+                        fontSize={{ base: 'xs', sm: 'sm' }}
+                        mt={1}
+                      >
+                        {formik.errors.bio}
+                      </Text>
+                    )}
+                  </Box>
+
+                  <Box>
+                    <Text
+                      mb={1}
+                      fontWeight='medium'
+                      fontSize={{ base: 'sm', sm: 'md' }}
+                    >
+                      Avatar URL
+                    </Text>
+                    <Box position='relative'>
+                      <Input
+                        name='avatarUrl'
+                        placeholder='https://example.com/avatar.jpg'
+                        size={{ base: 'md', sm: 'lg' }}
+                        value={formik.values.avatarUrl}
+                        onChange={formik.handleChange}
+                        onBlur={formik.handleBlur}
+                        pr={10}
+                      />
+                      <Box
+                        position='absolute'
+                        right={3}
+                        top='50%'
+                        transform='translateY(-50%)'
+                        pointerEvents='none'
+                      >
+                        <Icon color='gray.400' size='md'>
+                          <MdEdit />
+                        </Icon>
+                      </Box>
+                    </Box>
+                    {formik.touched.avatarUrl && formik.errors.avatarUrl && (
+                      <Text
+                        color='red.500'
+                        fontSize={{ base: 'xs', sm: 'sm' }}
+                        mt={1}
+                      >
+                        {formik.errors.avatarUrl}
+                      </Text>
+                    )}
+                  </Box>
+
+                  <HStack
+                    gap={{ base: 3, sm: 4 }}
+                    flexDirection={{ base: 'column', sm: 'row' }}
+                    align={{ base: 'stretch', sm: 'flex-end' }}
+                  >
+                    <Box flex={{ base: 'none', sm: 1 }}>
+                      <Text
+                        mb={1}
+                        fontWeight='medium'
+                        fontSize={{ base: 'sm', sm: 'md' }}
+                      >
+                        Country
+                      </Text>
+                      {/* Country dropdown */}
+                      <Menu.Root positioning={{ sameWidth: true, flip: true }}>
+                        <Menu.Trigger asChild>
+                          <Button
+                            variant='outline'
+                            size={{ base: 'md', sm: 'lg' }}
+                            width='full'
+                            justifyContent='space-between'
+                          >
+                            <HStack gap={2}>
+                              {formik.values.country &&
+                                formik.values.country.length === 2 && (
+                                  <FlagIcon
+                                    countryCode={formik.values.country}
+                                    size={18}
+                                  />
+                                )}
+                              <Text fontSize={{ base: 'sm', sm: 'md' }}>
+                                {(() => {
+                                  const dn =
+                                    typeof window !== 'undefined'
+                                      ? new Intl.DisplayNames(['en'], {
+                                          type: 'region',
+                                        })
+                                      : null;
+                                  if (!formik.values.country)
+                                    return 'Select country';
+                                  const code =
+                                    formik.values.country.toUpperCase();
+                                  return code.length === 2 && dn
+                                    ? dn.of(code)
+                                    : formik.values.country;
+                                })()}
+                              </Text>
+                            </HStack>
+                          </Button>
+                        </Menu.Trigger>
+                        <Portal>
+                          <Menu.Positioner>
+                            <Menu.Content maxH='300px' overflowY='auto'>
+                              {[
+                                'TR',
+                                'DE',
+                                'US',
+                                'GB',
+                                'CA',
+                                'FR',
+                                'ES',
+                                'PT',
+                                'IT',
+                                'NL',
+                                'BE',
+                                'SE',
+                                'NO',
+                                'DK',
+                                'FI',
+                                'PL',
+                                'CZ',
+                                'SK',
+                                'SI',
+                                'RO',
+                                'HU',
+                                'GR',
+                                'UA',
+                                'RU',
+                                'IN',
+                                'JP',
+                                'CN',
+                                'KR',
+                                'BR',
+                                'AR',
+                                'MX',
+                                'AU',
+                                'NZ',
+                                'IE',
+                                'IL',
+                                'SA',
+                                'AE',
+                                'ZA',
+                                'EG',
+                                'PK',
+                                'BD',
+                                'VN',
+                                'TH',
+                                'ID',
+                                'MY',
+                                'PH',
+                              ].map((code) => (
+                                <Menu.Item
+                                  key={code}
+                                  value={code}
+                                  onClick={() =>
+                                    formik.setFieldValue('country', code)
+                                  }
+                                >
+                                  <HStack gap={2}>
+                                    <FlagIcon countryCode={code} size={16} />
+                                    <Text>
+                                      {typeof window !== 'undefined'
+                                        ? new Intl.DisplayNames(['en'], {
+                                            type: 'region',
+                                          }).of(code)
+                                        : code}
+                                    </Text>
+                                  </HStack>
+                                </Menu.Item>
+                              ))}
+                            </Menu.Content>
+                          </Menu.Positioner>
+                        </Portal>
+                      </Menu.Root>
+                      {formik.touched.country && formik.errors.country && (
+                        <Text
+                          color='red.500'
+                          fontSize={{ base: 'xs', sm: 'sm' }}
+                          mt={1}
+                        >
+                          {formik.errors.country as string}
+                        </Text>
+                      )}
+                    </Box>
+
+                    <Box w={{ base: 'full', sm: '200px' }}>
+                      <Text
+                        mb={1}
+                        fontWeight='medium'
+                        fontSize={{ base: 'sm', sm: 'md' }}
+                      >
+                        Age
+                      </Text>
+                      <Input
+                        name='age'
+                        placeholder='e.g., 29'
+                        size={{ base: 'md', sm: 'lg' }}
+                        inputMode='numeric'
+                        type='number'
+                        min={16}
+                        max={99}
+                        value={formik.values.age}
+                        onChange={formik.handleChange}
+                        onBlur={formik.handleBlur}
+                      />
+                      {formik.touched.age && formik.errors.age && (
+                        <Text
+                          color='red.500'
+                          fontSize={{ base: 'xs', sm: 'sm' }}
+                          mt={1}
+                        >
+                          {formik.errors.age as string}
+                        </Text>
+                      )}
+                    </Box>
+                  </HStack>
+                </VStack>
+              </Box>
+
+              {/* Languages Known Section */}
+              <Box>
+                <HStack
+                  justify='space-between'
+                  mb={{ base: 3, sm: 4 }}
+                  flexWrap='wrap'
+                  gap={2}
+                >
+                  <Heading size={{ base: 'md', sm: 'lg' }}>
+                    Languages I Know
+                  </Heading>
+                  <Button
+                    size={{ base: 'xs', sm: 'sm' }}
+                    variant={'outline'}
+                    onClick={() => addLanguage('known')}
+                  >
+                    <HStack gap={1}>
+                      <MdAdd />
+                      <Text fontSize={{ base: 'xs', sm: 'sm' }}>
+                        Add Language
+                      </Text>
+                    </HStack>
+                  </Button>
+                </HStack>
+                <VStack gap={{ base: 2, sm: 3 }} align='stretch'>
+                  {formik.values.languagesKnown.map((lang, index) => (
+                    <HStack
+                      key={index}
+                      gap={{ base: 1, sm: 2 }}
+                      position='relative'
+                      flexWrap={{ base: 'wrap', sm: 'nowrap' }}
+                    >
+                      <Box
+                        flex={1}
+                        minW={{ base: 'calc(100% - 80px)', sm: 'auto' }}
+                      >
+                        <Menu.Root
+                          positioning={{ sameWidth: true, flip: true }}
+                        >
+                          <Menu.Trigger asChild>
+                            <Button
+                              variant='outline'
+                              size={{ base: 'sm', sm: 'md' }}
+                              width='full'
+                              justifyContent='space-between'
+                            >
+                              <HStack gap={2}>
+                                <FlagIcon
+                                  countryCode={
+                                    lang.code
+                                      ? languageToCountryCode(lang.code)
+                                      : lang.name
+                                        ? languageToCountryCode(
+                                            getLanguageCode(lang.name),
+                                          )
+                                        : undefined
+                                  }
+                                  size={16}
+                                />
+                                <Text fontSize={{ base: 'xs', sm: 'sm' }}>
+                                  {lang.name || 'Select language'}
+                                </Text>
+                              </HStack>
+                            </Button>
+                          </Menu.Trigger>
+                          <Portal>
+                            <Menu.Positioner>
+                              <Menu.Content maxH='300px' overflowY='auto'>
+                                {getAvailableKnownLanguages(index).map(
+                                  (language) => (
+                                    <Menu.Item
+                                      key={language.code}
+                                      value={language.name}
+                                      onClick={() =>
+                                        updateLanguage(
+                                          'known',
+                                          index,
+                                          'name',
+                                          language.name,
+                                        )
+                                      }
+                                    >
+                                      <HStack gap={2}>
+                                        <FlagIcon
+                                          countryCode={languageToCountryCode(
+                                            language.code,
+                                          )}
+                                          size={16}
+                                        />
+                                        <Text>{language.name}</Text>
+                                      </HStack>
+                                    </Menu.Item>
+                                  ),
+                                )}
+                              </Menu.Content>
+                            </Menu.Positioner>
+                          </Portal>
+                        </Menu.Root>
+                      </Box>
+
+                      <Box
+                        w={{ base: 'calc(100% - 60px)', sm: '200px' }}
+                        flexShrink={0}
+                      >
+                        <Menu.Root
+                          positioning={{ sameWidth: true, flip: true }}
+                        >
+                          <Menu.Trigger asChild>
+                            <Button
+                              variant='outline'
+                              size={{ base: 'sm', sm: 'md' }}
+                              width='full'
+                              justifyContent='space-between'
+                            >
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }}>
+                                {lang.level || 'Select level'}
+                              </Text>
+                            </Button>
+                          </Menu.Trigger>
+                          <Portal>
+                            <Menu.Positioner>
+                              <Menu.Content>
+                                {LANGUAGE_LEVELS.map((level) => (
+                                  <Menu.Item
+                                    key={level.value}
+                                    value={level.value}
+                                    onClick={() =>
+                                      updateLanguage(
+                                        'known',
+                                        index,
+                                        'level',
+                                        level.value,
+                                      )
+                                    }
+                                  >
+                                    {level.label}
+                                  </Menu.Item>
+                                ))}
+                              </Menu.Content>
+                            </Menu.Positioner>
+                          </Portal>
+                        </Menu.Root>
+                      </Box>
+
+                      <IconButton
+                        aria-label='Remove'
+                        onClick={() => removeLanguage('known', index)}
+                        colorScheme='red'
+                        variant='ghost'
+                        size={{ base: 'sm', sm: 'md' }}
+                      >
+                        <MdDelete />
+                      </IconButton>
+                    </HStack>
+                  ))}
+                </VStack>
+              </Box>
+
+              {/* Languages Learning Section */}
+              <Box>
+                <HStack
+                  justify='space-between'
+                  mb={{ base: 3, sm: 4 }}
+                  flexWrap='wrap'
+                  gap={2}
+                >
+                  <Heading size={{ base: 'md', sm: 'lg' }}>
+                    Languages I'm Learning
+                  </Heading>
+                  <Button
+                    size={{ base: 'xs', sm: 'sm' }}
+                    variant={'outline'}
+                    onClick={() => addLanguage('learn')}
+                  >
+                    <HStack gap={1}>
+                      <MdAdd />
+                      <Text fontSize={{ base: 'xs', sm: 'sm' }}>
+                        Add Language
+                      </Text>
+                    </HStack>
+                  </Button>
+                </HStack>
+                <VStack gap={{ base: 2, sm: 3 }} align='stretch'>
+                  {formik.values.languagesLearn.map((lang, index) => (
+                    <HStack
+                      key={index}
+                      gap={{ base: 1, sm: 2 }}
+                      position='relative'
+                      flexWrap={{ base: 'wrap', sm: 'nowrap' }}
+                    >
+                      <Box
+                        flex={1}
+                        minW={{ base: 'calc(100% - 80px)', sm: 'auto' }}
+                      >
+                        <Menu.Root
+                          positioning={{ sameWidth: true, flip: true }}
+                        >
+                          <Menu.Trigger asChild>
+                            <Button
+                              variant='outline'
+                              size={{ base: 'sm', sm: 'md' }}
+                              width='full'
+                              justifyContent='space-between'
+                            >
+                              <HStack gap={2}>
+                                <FlagIcon
+                                  countryCode={
+                                    lang.code
+                                      ? languageToCountryCode(lang.code)
+                                      : lang.name
+                                        ? languageToCountryCode(
+                                            getLanguageCode(lang.name),
+                                          )
+                                        : undefined
+                                  }
+                                  size={16}
+                                />
+                                <Text fontSize={{ base: 'xs', sm: 'sm' }}>
+                                  {lang.name || 'Select language'}
+                                </Text>
+                              </HStack>
+                            </Button>
+                          </Menu.Trigger>
+                          <Portal>
+                            <Menu.Positioner>
+                              <Menu.Content maxH='300px' overflowY='auto'>
+                                {getAvailableLearnLanguages(index).map(
+                                  (language) => (
+                                    <Menu.Item
+                                      key={language.code}
+                                      value={language.name}
+                                      onClick={() =>
+                                        updateLanguage(
+                                          'learn',
+                                          index,
+                                          'name',
+                                          language.name,
+                                        )
+                                      }
+                                    >
+                                      <HStack gap={2}>
+                                        <FlagIcon
+                                          countryCode={languageToCountryCode(
+                                            language.code,
+                                          )}
+                                          size={16}
+                                        />
+                                        <Text>{language.name}</Text>
+                                      </HStack>
+                                    </Menu.Item>
+                                  ),
+                                )}
+                              </Menu.Content>
+                            </Menu.Positioner>
+                          </Portal>
+                        </Menu.Root>
+                      </Box>
+
+                      <Box
+                        w={{ base: 'calc(100% - 60px)', sm: '200px' }}
+                        flexShrink={0}
+                      >
+                        <Menu.Root
+                          positioning={{ sameWidth: true, flip: true }}
+                        >
+                          <Menu.Trigger asChild>
+                            <Button
+                              variant='outline'
+                              size={{ base: 'sm', sm: 'md' }}
+                              width='full'
+                              justifyContent='space-between'
+                            >
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }}>
+                                {lang.level || 'Select level'}
+                              </Text>
+                            </Button>
+                          </Menu.Trigger>
+                          <Portal>
+                            <Menu.Positioner>
+                              <Menu.Content>
+                                {LANGUAGE_LEVELS.filter(
+                                  (level) => level.value !== 'Native',
+                                ).map((level) => (
+                                  <Menu.Item
+                                    key={level.value}
+                                    value={level.value}
+                                    onClick={() =>
+                                      updateLanguage(
+                                        'learn',
+                                        index,
+                                        'level',
+                                        level.value,
+                                      )
+                                    }
+                                  >
+                                    {level.label}
+                                  </Menu.Item>
+                                ))}
+                              </Menu.Content>
+                            </Menu.Positioner>
+                          </Portal>
+                        </Menu.Root>
+                      </Box>
+
+                      <IconButton
+                        aria-label='Remove'
+                        onClick={() => removeLanguage('learn', index)}
+                        colorScheme='red'
+                        variant='ghost'
+                        size={{ base: 'sm', sm: 'md' }}
+                      >
+                        <MdDelete />
+                      </IconButton>
+                    </HStack>
+                  ))}
+                </VStack>
+              </Box>
+
+              {/* Action Buttons */}
+              <HStack gap={4} pt={4}>
+                <Button
+                  type='submit'
+                  size={{ base: 'md', sm: 'lg' }}
+                  flex={1}
+                  colorScheme='blue'
+                  disabled={
+                    formik.isSubmitting ||
+                    hasIncompleteLanguages() ||
+                    hasDuplicateLanguages() ||
+                    !hasMinimumLanguages() ||
+                    !hasNativeLanguage()
+                  }
+                >
+                  {formik.isSubmitting ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </HStack>
+
+              {/* Password Section */}
+              <Box>
+                <Heading
+                  size={{ base: 'md', sm: 'lg' }}
+                  mb={{ base: 3, sm: 4 }}
+                  mt={{ base: 6, sm: 8 }}
+                >
+                  Password
+                </Heading>
+                <HStack
+                  justify={'space-between'}
+                  flexDirection={{ base: 'column', sm: 'row' }}
+                  gap={{ base: 3, sm: 0 }}
+                  align={{ base: 'stretch', sm: 'center' }}
+                >
+                  <Text color='gray.400' fontSize={{ base: 'xs', sm: 'sm' }}>
+                    You can send yourself a password reset email.
+                  </Text>
+                  <Button
+                    variant='outline'
+                    size={{ base: 'sm', sm: 'md' }}
+                    width={{ base: 'full', sm: 'auto' }}
+                    onClick={async () => {
+                      try {
+                        await client.mutate({
+                          mutation: RESET_PASSWORD,
+                          variables: { email: profile?.email },
+                        });
+                        toaster.create({
+                          title: 'Reset email sent',
+                          type: 'success',
+                        });
+                      } catch (e: any) {
+                        toaster.create({
+                          title: e.message || 'Failed to send reset email',
+                          type: 'error',
+                        });
+                      }
+                    }}
+                  >
+                    Reset Password
+                  </Button>
+                </HStack>
+              </Box>
+
+              {/* Danger Zone: Delete Account */}
+              {profile?.role !== 'ADMIN' && profile?.role !== 'MODERATOR' && (
+                <Box>
+                  <Heading
+                    size={{ base: 'md', sm: 'lg' }}
+                    mb={{ base: 3, sm: 4 }}
+                    mt={{ base: 6, sm: 8 }}
+                    color='red.400'
+                  >
+                    Danger Zone
+                  </Heading>
+                  <DeleteAccountSection />
+                </Box>
+              )}
+            </VStack>
+          </form>
+        ) : (
+          // Read-only view for other users
+          <VStack gap={{ base: 4, sm: 6 }} align='stretch'>
+            {/* Basic Info Section */}
+            <Box>
+              <Heading size={{ base: 'md', sm: 'lg' }} mb={{ base: 3, sm: 4 }}>
+                Basic Information
+              </Heading>
+              <VStack gap={{ base: 3, sm: 4 }} align='stretch'>
+                <Box>
+                  <Text
+                    mb={1}
+                    fontWeight='medium'
+                    fontSize={{ base: 'sm', sm: 'md' }}
+                  >
+                    Name
+                  </Text>
+                  <Text fontSize={{ base: 'md', sm: 'lg' }}>
+                    {profile?.name || 'Not provided'}
+                  </Text>
+                </Box>
+
+                <Box>
+                  <Text
+                    mb={1}
+                    fontWeight='medium'
+                    fontSize={{ base: 'sm', sm: 'md' }}
+                  >
+                    Username
+                  </Text>
+                  <Text fontSize={{ base: 'md', sm: 'lg' }}>
+                    {profile?.username || 'Not provided'}
+                  </Text>
+                </Box>
+
+                <Box>
+                  <Text
+                    mb={1}
+                    fontWeight='medium'
+                    fontSize={{ base: 'sm', sm: 'md' }}
+                  >
+                    Bio
+                  </Text>
+                  <Text fontSize={{ base: 'md', sm: 'lg' }}>
+                    {profile?.bio || 'No bio provided'}
+                  </Text>
+                </Box>
+
+                <HStack
+                  gap={{ base: 3, sm: 4 }}
+                  flexDirection={{ base: 'column', sm: 'row' }}
+                  align={{ base: 'stretch', sm: 'flex-end' }}
+                >
+                  <Box flex={{ base: 'none', sm: 1 }}>
+                    <Text
+                      mb={1}
+                      fontWeight='medium'
+                      fontSize={{ base: 'sm', sm: 'md' }}
+                    >
+                      Country
+                    </Text>
+                    <HStack gap={2}>
+                      {profile?.country && profile.country.length === 2 && (
+                        <FlagIcon countryCode={profile.country} size={18} />
+                      )}
+                      <Text fontSize={{ base: 'sm', sm: 'md' }}>
+                        {(() => {
+                          const dn =
+                            typeof window !== 'undefined'
+                              ? new Intl.DisplayNames(['en'], {
+                                  type: 'region',
+                                })
+                              : null;
+                          if (!profile?.country) return 'Not provided';
+                          const code = profile.country.toUpperCase();
+                          return code.length === 2 && dn
+                            ? dn.of(code)
+                            : profile.country;
+                        })()}
+                      </Text>
+                    </HStack>
+                  </Box>
+
+                  <Box w={{ base: 'full', sm: '200px' }}>
+                    <Text
+                      mb={1}
+                      fontWeight='medium'
+                      fontSize={{ base: 'sm', sm: 'md' }}
+                    >
+                      Age
+                    </Text>
+                    <Text fontSize={{ base: 'md', sm: 'lg' }}>
+                      {profile?.age || 'Not provided'}
+                    </Text>
                   </Box>
                 </HStack>
               </VStack>
             </Box>
 
             {/* Languages Known Section */}
-            <Box>
-              <HStack justify='space-between' mb={4}>
-                <Heading size='lg'>Languages I Know</Heading>
-                <Button
-                  size='sm'
-                  variant={'outline'}
-                  onClick={() => addLanguage('known')}
+            {profile?.languagesKnown && profile.languagesKnown.length > 0 && (
+              <Box>
+                <Heading
+                  size={{ base: 'md', sm: 'lg' }}
+                  mb={{ base: 3, sm: 4 }}
                 >
-                  <HStack gap={1}>
-                    <MdAdd />
-                    <Text>Add Language</Text>
-                  </HStack>
-                </Button>
-              </HStack>
-              <VStack gap={3} align='stretch'>
-                {formik.values.languagesKnown.map((lang, index) => (
-                  <HStack key={index} gap={2} position='relative'>
-                    <Box flex={1}>
-                      <Menu.Root positioning={{ sameWidth: true, flip: true }}>
-                        <Menu.Trigger asChild>
-                          <Button
-                            variant='outline'
-                            size='md'
-                            width='full'
-                            justifyContent='space-between'
-                          >
-                            <HStack gap={2}>
-                              <FlagIcon
-                                countryCode={
-                                  lang.code
-                                    ? languageToCountryCode(lang.code)
-                                    : lang.name
-                                      ? languageToCountryCode(
-                                          getLanguageCode(lang.name),
-                                        )
-                                      : undefined
-                                }
-                                size={16}
-                              />
-                              <Text>{lang.name || 'Select language'}</Text>
-                            </HStack>
-                          </Button>
-                        </Menu.Trigger>
-                        <Portal>
-                          <Menu.Positioner>
-                            <Menu.Content maxH='300px' overflowY='auto'>
-                              {getAvailableKnownLanguages(index).map(
-                                (language) => (
-                                  <Menu.Item
-                                    key={language.code}
-                                    value={language.name}
-                                    onClick={() =>
-                                      updateLanguage(
-                                        'known',
-                                        index,
-                                        'name',
-                                        language.name,
-                                      )
-                                    }
-                                  >
-                                    <HStack gap={2}>
-                                      <FlagIcon
-                                        countryCode={languageToCountryCode(
-                                          language.code,
-                                        )}
-                                        size={16}
-                                      />
-                                      <Text>{language.name}</Text>
-                                    </HStack>
-                                  </Menu.Item>
-                                ),
-                              )}
-                            </Menu.Content>
-                          </Menu.Positioner>
-                        </Portal>
-                      </Menu.Root>
-                    </Box>
-
-                    <Box w='200px'>
-                      <Menu.Root positioning={{ sameWidth: true, flip: true }}>
-                        <Menu.Trigger asChild>
-                          <Button
-                            variant='outline'
-                            size='md'
-                            width='full'
-                            justifyContent='space-between'
-                          >
-                            <Text>{lang.level || 'Select level'}</Text>
-                          </Button>
-                        </Menu.Trigger>
-                        <Portal>
-                          <Menu.Positioner>
-                            <Menu.Content>
-                              {LANGUAGE_LEVELS.map((level) => (
-                                <Menu.Item
-                                  key={level.value}
-                                  value={level.value}
-                                  onClick={() =>
-                                    updateLanguage(
-                                      'known',
-                                      index,
-                                      'level',
-                                      level.value,
-                                    )
-                                  }
-                                >
-                                  {level.label}
-                                </Menu.Item>
-                              ))}
-                            </Menu.Content>
-                          </Menu.Positioner>
-                        </Portal>
-                      </Menu.Root>
-                    </Box>
-
-                    <IconButton
-                      aria-label='Remove'
-                      onClick={() => removeLanguage('known', index)}
-                      colorScheme='red'
-                      variant='ghost'
-                    >
-                      <MdDelete />
-                    </IconButton>
-                  </HStack>
-                ))}
-              </VStack>
-            </Box>
+                  Languages I Know
+                </Heading>
+                <VStack gap={{ base: 2, sm: 3 }} align='stretch'>
+                  {profile.languagesKnown.map((lang, index) => (
+                    <HStack key={index} gap={{ base: 2, sm: 3 }}>
+                      <FlagIcon
+                        countryCode={
+                          lang.code
+                            ? languageToCountryCode(lang.code)
+                            : lang.name
+                              ? languageToCountryCode(
+                                  getLanguageCode(lang.name),
+                                )
+                              : undefined
+                        }
+                        size={20}
+                      />
+                      <Text fontSize={{ base: 'sm', sm: 'md' }}>
+                        {lang.name}
+                      </Text>
+                      <Text
+                        color='gray.500'
+                        fontSize={{ base: 'xs', sm: 'sm' }}
+                      >
+                        ({lang.level})
+                      </Text>
+                    </HStack>
+                  ))}
+                </VStack>
+              </Box>
+            )}
 
             {/* Languages Learning Section */}
-            <Box>
-              <HStack justify='space-between' mb={4}>
-                <Heading size='lg'>Languages I'm Learning</Heading>
-                <Button
-                  size='sm'
-                  variant={'outline'}
-                  onClick={() => addLanguage('learn')}
-                >
-                  <HStack gap={1}>
-                    <MdAdd />
-                    <Text>Add Language</Text>
-                  </HStack>
-                </Button>
-              </HStack>
-              <VStack gap={3} align='stretch'>
-                {formik.values.languagesLearn.map((lang, index) => (
-                  <HStack key={index} gap={2} position='relative'>
-                    <Box flex={1}>
-                      <Menu.Root positioning={{ sameWidth: true, flip: true }}>
-                        <Menu.Trigger asChild>
-                          <Button
-                            variant='outline'
-                            size='md'
-                            width='full'
-                            justifyContent='space-between'
-                          >
-                            <HStack gap={2}>
-                              <FlagIcon
-                                countryCode={
-                                  lang.code
-                                    ? languageToCountryCode(lang.code)
-                                    : lang.name
-                                      ? languageToCountryCode(
-                                          getLanguageCode(lang.name),
-                                        )
-                                      : undefined
-                                }
-                                size={16}
-                              />
-                              <Text>{lang.name || 'Select language'}</Text>
-                            </HStack>
-                          </Button>
-                        </Menu.Trigger>
-                        <Portal>
-                          <Menu.Positioner>
-                            <Menu.Content maxH='300px' overflowY='auto'>
-                              {getAvailableLearnLanguages(index).map(
-                                (language) => (
-                                  <Menu.Item
-                                    key={language.code}
-                                    value={language.name}
-                                    onClick={() =>
-                                      updateLanguage(
-                                        'learn',
-                                        index,
-                                        'name',
-                                        language.name,
-                                      )
-                                    }
-                                  >
-                                    <HStack gap={2}>
-                                      <FlagIcon
-                                        countryCode={languageToCountryCode(
-                                          language.code,
-                                        )}
-                                        size={16}
-                                      />
-                                      <Text>{language.name}</Text>
-                                    </HStack>
-                                  </Menu.Item>
-                                ),
-                              )}
-                            </Menu.Content>
-                          </Menu.Positioner>
-                        </Portal>
-                      </Menu.Root>
-                    </Box>
-
-                    <Box w='200px'>
-                      <Menu.Root positioning={{ sameWidth: true, flip: true }}>
-                        <Menu.Trigger asChild>
-                          <Button
-                            variant='outline'
-                            size='md'
-                            width='full'
-                            justifyContent='space-between'
-                          >
-                            {lang.level || 'Select level'}
-                          </Button>
-                        </Menu.Trigger>
-                        <Portal>
-                          <Menu.Positioner>
-                            <Menu.Content>
-                              {LANGUAGE_LEVELS.filter(
-                                (level) => level.value !== 'Native',
-                              ).map((level) => (
-                                <Menu.Item
-                                  key={level.value}
-                                  value={level.value}
-                                  onClick={() =>
-                                    updateLanguage(
-                                      'learn',
-                                      index,
-                                      'level',
-                                      level.value,
-                                    )
-                                  }
-                                >
-                                  {level.label}
-                                </Menu.Item>
-                              ))}
-                            </Menu.Content>
-                          </Menu.Positioner>
-                        </Portal>
-                      </Menu.Root>
-                    </Box>
-
-                    <IconButton
-                      aria-label='Remove'
-                      onClick={() => removeLanguage('learn', index)}
-                      colorScheme='red'
-                      variant='ghost'
-                    >
-                      <MdDelete />
-                    </IconButton>
-                  </HStack>
-                ))}
-              </VStack>
-            </Box>
-
-            {/* Action Buttons */}
-            <HStack gap={4} pt={4}>
-              <Button
-                type='submit'
-                size='lg'
-                flex={1}
-                colorScheme='blue'
-                disabled={
-                  formik.isSubmitting ||
-                  hasIncompleteLanguages() ||
-                  hasDuplicateLanguages() ||
-                  !hasMinimumLanguages() ||
-                  !hasNativeLanguage()
-                }
-              >
-                {formik.isSubmitting ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </HStack>
-
-            {/* Password Section */}
-            <Box>
-              <Heading size='lg' mb={4} mt={8}>
-                Password
-              </Heading>
-              <HStack justify={'space-between'}>
-                <Text color='gray.400'>
-                  You can send yourself a password reset email.
-                </Text>
-                <Button
-                  variant='outline'
-                  onClick={async () => {
-                    try {
-                      await client.mutate({
-                        mutation: RESET_PASSWORD,
-                        variables: { email: profile?.email },
-                      });
-                      toaster.create({
-                        title: 'Reset email sent',
-                        type: 'success',
-                      });
-                    } catch (e: any) {
-                      toaster.create({
-                        title: e.message || 'Failed to send reset email',
-                        type: 'error',
-                      });
-                    }
-                  }}
-                >
-                  Reset Password
-                </Button>
-              </HStack>
-            </Box>
-
-            {/* Danger Zone: Delete Account */}
-            {profile?.role !== 'ADMIN' && profile?.role !== 'MODERATOR' && (
+            {profile?.languagesLearn && profile.languagesLearn.length > 0 && (
               <Box>
-                <Heading size='lg' mb={4} mt={8} color='red.400'>
-                  Danger Zone
+                <Heading
+                  size={{ base: 'md', sm: 'lg' }}
+                  mb={{ base: 3, sm: 4 }}
+                >
+                  Languages I'm Learning
                 </Heading>
-                <DeleteAccountSection />
+                <VStack gap={{ base: 2, sm: 3 }} align='stretch'>
+                  {profile.languagesLearn.map((lang, index) => (
+                    <HStack key={index} gap={{ base: 2, sm: 3 }}>
+                      <FlagIcon
+                        countryCode={
+                          lang.code
+                            ? languageToCountryCode(lang.code)
+                            : lang.name
+                              ? languageToCountryCode(
+                                  getLanguageCode(lang.name),
+                                )
+                              : undefined
+                        }
+                        size={20}
+                      />
+                      <Text fontSize={{ base: 'sm', sm: 'md' }}>
+                        {lang.name}
+                      </Text>
+                      <Text
+                        color='gray.500'
+                        fontSize={{ base: 'xs', sm: 'sm' }}
+                      >
+                        ({lang.level})
+                      </Text>
+                    </HStack>
+                  ))}
+                </VStack>
               </Box>
             )}
           </VStack>
-        </form>
+        )}
       </Box>
+
+      {/* Friends Dialog */}
+      <FriendsDialog
+        open={friendsDialogOpen}
+        onClose={() => setFriendsDialogOpen(false)}
+        router={router}
+      />
     </Box>
+  );
+}
+
+// Friends Dialog Component
+function FriendsDialog({
+  open,
+  onClose,
+  router,
+}: {
+  open: boolean;
+  onClose: () => void;
+  router: any;
+}) {
+  const [friends, setFriends] = useState<any[]>([]);
+  const [sentRequests, setSentRequests] = useState<any[]>([]);
+  const [receivedRequests, setReceivedRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('friends');
+  const [respondingTo, setRespondingTo] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      fetchAllData();
+    }
+  }, [open]);
+
+  const fetchAllData = async () => {
+    setLoading(true);
+    try {
+      // Use Promise.allSettled to handle individual failures gracefully
+      const results = await Promise.allSettled([
+        client.query<{ friends: any[] }>({
+          query: GET_FRIENDS,
+          fetchPolicy: 'network-only',
+        }),
+        client.query<{ sentFriendRequests: any[] }>({
+          query: GET_SENT_FRIEND_REQUESTS,
+          fetchPolicy: 'network-only',
+        }),
+        client.query<{ pendingFriendRequests: any[] }>({
+          query: GET_PENDING_FRIEND_REQUESTS,
+          fetchPolicy: 'network-only',
+        }),
+      ]);
+
+      // Handle friends query
+      if (results[0].status === 'fulfilled') {
+        setFriends(results[0].value.data?.friends || []);
+      } else {
+        console.error('Failed to fetch friends:', results[0].reason);
+        setFriends([]);
+      }
+
+      // Handle sent requests query
+      if (results[1].status === 'fulfilled') {
+        setSentRequests(results[1].value.data?.sentFriendRequests || []);
+      } else {
+        console.error('Failed to fetch sent requests:', results[1].reason);
+        setSentRequests([]);
+      }
+
+      // Handle received requests query
+      if (results[2].status === 'fulfilled') {
+        setReceivedRequests(results[2].value.data?.pendingFriendRequests || []);
+      } else {
+        console.error('Failed to fetch received requests:', results[2].reason);
+        setReceivedRequests([]);
+      }
+
+      // Only show error if all queries failed
+      const allFailed = results.every((r) => r.status === 'rejected');
+      if (allFailed) {
+        toaster.create({
+          title: 'Failed to load friend data',
+          type: 'error',
+        });
+      }
+    } catch (error) {
+      console.error('Unexpected error fetching friend data:', error);
+      // Set empty arrays as fallback
+      setFriends([]);
+      setSentRequests([]);
+      setReceivedRequests([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRespondToRequest = async (requestId: string, accept: boolean) => {
+    setRespondingTo(requestId);
+    try {
+      await client.mutate({
+        mutation: RESPOND_FRIEND_REQUEST,
+        variables: { requestId, accept },
+      });
+      toaster.create({
+        title: accept ? 'Friend request accepted' : 'Friend request rejected',
+        type: 'success',
+      });
+      await fetchAllData();
+    } catch (error: any) {
+      toaster.create({
+        title: error.message || 'Failed to respond to request',
+        type: 'error',
+      });
+    } finally {
+      setRespondingTo(null);
+    }
+  };
+
+  const renderUserGrid = (users: any[]) => {
+    if (users.length === 0) {
+      return (
+        <VStack gap={4} py={8}>
+          <Text color='gray.400' fontSize={{ base: 'sm', sm: 'md' }}>
+            No items to display
+          </Text>
+        </VStack>
+      );
+    }
+
+    return (
+      <Box maxH='60vh' overflowY='auto'>
+        <Grid
+          templateColumns={{
+            base: '1fr',
+            sm: 'repeat(2, 1fr)',
+            md: 'repeat(3, 1fr)',
+          }}
+          gap={4}
+        >
+          {users.map((user: any) => (
+            <GridItem key={user.id}>
+              <UserCard
+                id={user.id}
+                name={user.name}
+                email={user.email}
+                username={user.username}
+                avatarUrl={user.avatarUrl}
+                country={user.country}
+                age={user.age}
+                languagesKnown={user.languagesKnown}
+                languagesLearn={user.languagesLearn}
+              />
+            </GridItem>
+          ))}
+        </Grid>
+      </Box>
+    );
+  };
+
+  const renderRequestGrid = (requests: any[], type: 'sent' | 'received') => {
+    if (requests.length === 0) {
+      return (
+        <VStack gap={4} py={8}>
+          <Text color='gray.400' fontSize={{ base: 'sm', sm: 'md' }}>
+            No {type === 'sent' ? 'sent' : 'received'} requests
+          </Text>
+        </VStack>
+      );
+    }
+
+    return (
+      <Box maxH='60vh' overflowY='auto'>
+        <Grid
+          templateColumns={{
+            base: '1fr',
+            sm: 'repeat(2, 1fr)',
+            md: 'repeat(3, 1fr)',
+          }}
+          gap={4}
+        >
+          {requests.map((request: any) => {
+            const user = type === 'sent' ? request.receiver : request.sender;
+            return (
+              <GridItem key={request.id}>
+                <Box position='relative'>
+                  <UserCard
+                    id={user.id}
+                    name={user.name}
+                    email={user.email}
+                    username={user.username}
+                    avatarUrl={user.avatarUrl}
+                    country={user.country}
+                    age={user.age}
+                    languagesKnown={user.languagesKnown}
+                    languagesLearn={user.languagesLearn}
+                  />
+                  {type === 'received' && (
+                    <HStack gap={2} mt={2} justify='center' flexWrap='wrap'>
+                      <Button
+                        size='sm'
+                        colorScheme='green'
+                        onClick={() => handleRespondToRequest(request.id, true)}
+                        disabled={respondingTo === request.id}
+                      >
+                        Accept
+                      </Button>
+                      <Button
+                        size='sm'
+                        colorScheme='red'
+                        variant='outline'
+                        onClick={() =>
+                          handleRespondToRequest(request.id, false)
+                        }
+                        disabled={respondingTo === request.id}
+                      >
+                        Reject
+                      </Button>
+                    </HStack>
+                  )}
+                </Box>
+              </GridItem>
+            );
+          })}
+        </Grid>
+      </Box>
+    );
+  };
+
+  return (
+    <Dialog.Root
+      open={open}
+      onOpenChange={(e) => !e.open && onClose()}
+      placement='center'
+    >
+      <Dialog.Backdrop />
+      <Portal>
+        <Dialog.Positioner>
+          <Dialog.Content maxW={{ base: '90vw', sm: '600px', md: '800px' }}>
+            <Dialog.Header>
+              <Dialog.Title>
+                <Text fontSize={{ base: 'lg', sm: 'xl', md: '2xl' }}>
+                  Friends & Requests
+                </Text>
+              </Dialog.Title>
+            </Dialog.Header>
+            <Dialog.Body>
+              <Tabs.Root
+                value={activeTab}
+                onValueChange={(e) => setActiveTab(e.value as string)}
+              >
+                <Tabs.List>
+                  <Tabs.Trigger value='friends'>
+                    Friends ({friends.length})
+                  </Tabs.Trigger>
+                  <Tabs.Trigger value='sent'>
+                    Sent ({sentRequests.length})
+                  </Tabs.Trigger>
+                  <Tabs.Trigger value='received'>
+                    Received ({receivedRequests.length})
+                  </Tabs.Trigger>
+                </Tabs.List>
+                <Tabs.Content value='friends'>
+                  {loading ? (
+                    <Flex justify='center' align='center' py={8}>
+                      <Text>Loading friends...</Text>
+                    </Flex>
+                  ) : friends.length === 0 ? (
+                    <VStack gap={4} py={8}>
+                      <Text
+                        color='gray.400'
+                        fontSize={{ base: 'sm', sm: 'md' }}
+                      >
+                        You don't have any friends yet.
+                      </Text>
+                      <Button
+                        colorScheme='blue'
+                        onClick={() => {
+                          onClose();
+                          router.push('/discover');
+                        }}
+                        size={{ base: 'md', sm: 'lg' }}
+                      >
+                        Discover People
+                      </Button>
+                    </VStack>
+                  ) : (
+                    renderUserGrid(friends)
+                  )}
+                </Tabs.Content>
+                <Tabs.Content value='sent'>
+                  {loading ? (
+                    <Flex justify='center' align='center' py={8}>
+                      <Text>Loading sent requests...</Text>
+                    </Flex>
+                  ) : (
+                    renderRequestGrid(sentRequests, 'sent')
+                  )}
+                </Tabs.Content>
+                <Tabs.Content value='received'>
+                  {loading ? (
+                    <Flex justify='center' align='center' py={8}>
+                      <Text>Loading received requests...</Text>
+                    </Flex>
+                  ) : (
+                    renderRequestGrid(receivedRequests, 'received')
+                  )}
+                </Tabs.Content>
+              </Tabs.Root>
+            </Dialog.Body>
+            <Dialog.Footer>
+              <Button
+                variant='ghost'
+                onClick={onClose}
+                size={{ base: 'md', sm: 'lg' }}
+              >
+                Close
+              </Button>
+            </Dialog.Footer>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Portal>
+    </Dialog.Root>
   );
 }
 
@@ -1053,8 +2021,13 @@ function DeleteAccountSection() {
 
   return (
     <>
-      <HStack justify={'space-between'}>
-        <Text color='gray.400'>
+      <HStack
+        justify={'space-between'}
+        flexDirection={{ base: 'column', sm: 'row' }}
+        gap={{ base: 3, sm: 0 }}
+        align={{ base: 'stretch', sm: 'center' }}
+      >
+        <Text color='gray.400' fontSize={{ base: 'xs', sm: 'sm' }}>
           This action is irreversible. Your account and data will be permanently
           deleted.
         </Text>
@@ -1062,6 +2035,8 @@ function DeleteAccountSection() {
           colorPalette={'red'}
           variant='outline'
           onClick={() => setOpen(true)}
+          size={{ base: 'sm', sm: 'md' }}
+          width={{ base: 'full', sm: 'auto' }}
         >
           Delete Account
         </Button>
@@ -1087,31 +2062,44 @@ function DeleteAccountSection() {
           >
             <Box
               bg='bg'
-              p={6}
+              p={{ base: 4, sm: 6 }}
               borderRadius='md'
-              minW={{ base: '90%', md: '480px' }}
+              minW={{ base: '90%', sm: '380px', md: '480px' }}
+              maxW={{ base: '90%', sm: '95%' }}
+              mx={{ base: 2, sm: 0 }}
             >
-              <Heading size='md' mb={2}>
+              <Heading size={{ base: 'sm', sm: 'md' }} mb={2}>
                 Confirm Deletion
               </Heading>
-              <Text color='gray.400' mb={4}>
+              <Text color='gray.400' mb={4} fontSize={{ base: 'xs', sm: 'sm' }}>
                 Enter your password to confirm account deletion.
               </Text>
               <Input
                 type='password'
                 placeholder='Password'
-                size='lg'
+                size={{ base: 'md', sm: 'lg' }}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 mb={4}
               />
-              <HStack justify='flex-end'>
-                <Button variant='ghost' onClick={() => setOpen(false)}>
+              <HStack
+                justify='flex-end'
+                flexDirection={{ base: 'column', sm: 'row' }}
+                gap={{ base: 2, sm: 0 }}
+              >
+                <Button
+                  variant='ghost'
+                  onClick={() => setOpen(false)}
+                  width={{ base: 'full', sm: 'auto' }}
+                  order={{ base: 2, sm: 1 }}
+                >
                   Cancel
                 </Button>
                 <Button
                   colorPalette={'red'}
                   disabled={submitting || password.length === 0}
+                  width={{ base: 'full', sm: 'auto' }}
+                  size={{ base: 'md', sm: 'lg' }}
                   onClick={async () => {
                     setSubmitting(true);
                     try {
