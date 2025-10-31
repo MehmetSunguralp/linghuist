@@ -155,6 +155,29 @@ export default function ProfilePage() {
           return;
         }
 
+        // Check for duplicate languages
+        const knownLanguages = values.languagesKnown
+          .map((lang) => lang.name.trim())
+          .filter((name) => name !== '');
+        const knownDuplicates =
+          new Set(knownLanguages).size !== knownLanguages.length;
+
+        const learnLanguages = values.languagesLearn
+          .map((lang) => lang.name.trim())
+          .filter((name) => name !== '');
+        const learnDuplicates =
+          new Set(learnLanguages).size !== learnLanguages.length;
+
+        if (knownDuplicates || learnDuplicates) {
+          toaster.create({
+            title: 'Duplicate languages found',
+            description:
+              'You cannot add the same language more than once in each list',
+            type: 'warning',
+          });
+          return;
+        }
+
         // Filter out empty entries and strip __typename from language objects
         const cleanLanguages = (langs: Language[]) =>
           langs
@@ -165,6 +188,62 @@ export default function ProfilePage() {
 
         const cleanedLanguagesKnown = cleanLanguages(values.languagesKnown);
         const cleanedLanguagesLearn = cleanLanguages(values.languagesLearn);
+
+        // Check minimum language requirements
+        if (cleanedLanguagesKnown.length < 1) {
+          toaster.create({
+            title: 'At least one known language required',
+            description: 'Please add at least one language you know',
+            type: 'warning',
+          });
+          return;
+        }
+
+        if (cleanedLanguagesLearn.length < 1) {
+          toaster.create({
+            title: 'At least one learning language required',
+            description: 'Please add at least one language you are learning',
+            type: 'warning',
+          });
+          return;
+        }
+
+        // Check if any learned languages are Native/Fluent in known languages
+        const nativeFluentKnown = values.languagesKnown
+          .filter(
+            (lang) =>
+              lang.name.trim() !== '' &&
+              (lang.level === 'Native' || lang.level === 'Fluent'),
+          )
+          .map((lang) => lang.name);
+        const conflictingLearn = values.languagesLearn.some(
+          (lang) =>
+            lang.name.trim() !== '' && nativeFluentKnown.includes(lang.name),
+        );
+
+        if (conflictingLearn) {
+          toaster.create({
+            title: 'Language conflict',
+            description:
+              'You cannot learn a language that you already know at Native or Fluent level',
+            type: 'warning',
+          });
+          return;
+        }
+
+        // Check for at least one native language
+        const nativeLanguages = cleanedLanguagesKnown.filter(
+          (lang) => lang.level === 'Native',
+        );
+        if (nativeLanguages.length < 1) {
+          toaster.create({
+            title: 'Native language required',
+            description:
+              'You must have at least one native language in your known languages',
+            type: 'warning',
+          });
+          return;
+        }
 
         const { data } = await client.mutate<{ updateMe: UserProfile }>({
           mutation: UPDATE_PROFILE,
@@ -212,7 +291,49 @@ export default function ProfilePage() {
 
   const removeLanguage = (type: 'known' | 'learn', index: number) => {
     const field = type === 'known' ? 'languagesKnown' : 'languagesLearn';
-    const updated = formik.values[field].filter((_, i) => i !== index);
+    const currentList = formik.values[field];
+
+    // Count complete languages (with both name and level)
+    const completeLanguages = currentList.filter(
+      (lang) => lang.name.trim() !== '' && lang.level.trim() !== '',
+    );
+
+    // Check if this is the last complete language
+    if (completeLanguages.length === 1) {
+      const languageType = type === 'known' ? 'known' : 'learning';
+      toaster.create({
+        title: 'Cannot remove last language',
+        description: `You must have at least one ${languageType} language. Please add another one before removing this.`,
+        type: 'warning',
+      });
+      return;
+    }
+
+    // For known languages, check if removing the last native language
+    if (type === 'known') {
+      const languageToRemove = currentList[index];
+      if (
+        languageToRemove.level === 'Native' &&
+        languageToRemove.name.trim() !== ''
+      ) {
+        const remainingNativeLanguages = currentList.filter(
+          (lang, idx) =>
+            idx !== index && lang.name.trim() !== '' && lang.level === 'Native',
+        );
+
+        if (remainingNativeLanguages.length === 0) {
+          toaster.create({
+            title: 'Cannot remove last native language',
+            description:
+              'You must have at least one native language. Please add another native language before removing this one.',
+            type: 'warning',
+          });
+          return;
+        }
+      }
+    }
+
+    const updated = currentList.filter((_, i) => i !== index);
     formik.setFieldValue(field, updated);
   };
 
@@ -224,6 +345,30 @@ export default function ProfilePage() {
   ) => {
     const field = type === 'known' ? 'languagesKnown' : 'languagesLearn';
     const updated = [...formik.values[field]];
+
+    // If changing level from Native to something else in known languages, check if it's the last native
+    if (
+      type === 'known' &&
+      key === 'level' &&
+      updated[index].level === 'Native' &&
+      value !== 'Native'
+    ) {
+      const nativeCount = formik.values.languagesKnown.filter(
+        (lang, idx) =>
+          idx !== index && lang.name.trim() !== '' && lang.level === 'Native',
+      ).length;
+
+      if (nativeCount === 0) {
+        toaster.create({
+          title: 'Cannot change level',
+          description:
+            'You must have at least one native language. Please add another native language before changing this one.',
+          type: 'warning',
+        });
+        return;
+      }
+    }
+
     updated[index] = { ...updated[index], [key]: value };
 
     // Auto-populate code when language name is selected
@@ -232,6 +377,37 @@ export default function ProfilePage() {
     }
 
     formik.setFieldValue(field, updated);
+  };
+
+  // Get languages that are already selected in known languages with Native or Fluent level
+  const excludedFromLearnLanguages = useMemo(() => {
+    return formik.values.languagesKnown
+      .filter(
+        (lang) =>
+          lang.name.trim() !== '' &&
+          (lang.level === 'Native' || lang.level === 'Fluent'),
+      )
+      .map((lang) => lang.name);
+  }, [formik.values.languagesKnown]);
+
+  // Get available languages for known languages list (exclude duplicates)
+  const getAvailableKnownLanguages = (currentIndex: number) => {
+    const selectedLanguages = formik.values.languagesKnown
+      .map((lang, idx) => (idx !== currentIndex ? lang.name : ''))
+      .filter((name) => name.trim() !== '');
+    return LANGUAGES.filter((lang) => !selectedLanguages.includes(lang.name));
+  };
+
+  // Get available languages for learned languages list (exclude duplicates and Native/Fluent from known)
+  const getAvailableLearnLanguages = (currentIndex: number) => {
+    const selectedLanguages = formik.values.languagesLearn
+      .map((lang, idx) => (idx !== currentIndex ? lang.name : ''))
+      .filter((name) => name.trim() !== '');
+    return LANGUAGES.filter(
+      (lang) =>
+        !selectedLanguages.includes(lang.name) &&
+        !excludedFromLearnLanguages.includes(lang.name),
+    );
   };
 
   // Check if there are any incomplete language entries
@@ -247,6 +423,45 @@ export default function ProfilePage() {
         (lang.name.trim() === '' && lang.level.trim() !== ''),
     );
     return incompleteKnown || incompleteLearn;
+  };
+
+  // Check if there are duplicate languages
+  const hasDuplicateLanguages = () => {
+    const knownLanguages = formik.values.languagesKnown
+      .map((lang) => lang.name.trim())
+      .filter((name) => name !== '');
+    const knownDuplicates =
+      new Set(knownLanguages).size !== knownLanguages.length;
+
+    const learnLanguages = formik.values.languagesLearn
+      .map((lang) => lang.name.trim())
+      .filter((name) => name !== '');
+    const learnDuplicates =
+      new Set(learnLanguages).size !== learnLanguages.length;
+
+    return knownDuplicates || learnDuplicates;
+  };
+
+  // Check if minimum language requirements are met
+  const hasMinimumLanguages = () => {
+    const cleanKnown = formik.values.languagesKnown.filter(
+      (lang) => lang.name.trim() !== '' && lang.level.trim() !== '',
+    );
+    const cleanLearn = formik.values.languagesLearn.filter(
+      (lang) => lang.name.trim() !== '' && lang.level.trim() !== '',
+    );
+    return cleanKnown.length >= 1 && cleanLearn.length >= 1;
+  };
+
+  // Check if there's at least one native language
+  const hasNativeLanguage = () => {
+    const nativeLanguages = formik.values.languagesKnown.filter(
+      (lang) =>
+        lang.name.trim() !== '' &&
+        lang.level.trim() !== '' &&
+        lang.level === 'Native',
+    );
+    return nativeLanguages.length >= 1;
   };
 
   if (loading) {
@@ -548,30 +763,32 @@ export default function ProfilePage() {
                         <Portal>
                           <Menu.Positioner>
                             <Menu.Content maxH='300px' overflowY='auto'>
-                              {LANGUAGES.map((language) => (
-                                <Menu.Item
-                                  key={language.code}
-                                  value={language.name}
-                                  onClick={() =>
-                                    updateLanguage(
-                                      'known',
-                                      index,
-                                      'name',
-                                      language.name,
-                                    )
-                                  }
-                                >
-                                  <HStack gap={2}>
-                                    <FlagIcon
-                                      countryCode={languageToCountryCode(
-                                        language.code,
-                                      )}
-                                      size={16}
-                                    />
-                                    <Text>{language.name}</Text>
-                                  </HStack>
-                                </Menu.Item>
-                              ))}
+                              {getAvailableKnownLanguages(index).map(
+                                (language) => (
+                                  <Menu.Item
+                                    key={language.code}
+                                    value={language.name}
+                                    onClick={() =>
+                                      updateLanguage(
+                                        'known',
+                                        index,
+                                        'name',
+                                        language.name,
+                                      )
+                                    }
+                                  >
+                                    <HStack gap={2}>
+                                      <FlagIcon
+                                        countryCode={languageToCountryCode(
+                                          language.code,
+                                        )}
+                                        size={16}
+                                      />
+                                      <Text>{language.name}</Text>
+                                    </HStack>
+                                  </Menu.Item>
+                                ),
+                              )}
                             </Menu.Content>
                           </Menu.Positioner>
                         </Portal>
@@ -675,30 +892,32 @@ export default function ProfilePage() {
                         <Portal>
                           <Menu.Positioner>
                             <Menu.Content maxH='300px' overflowY='auto'>
-                              {LANGUAGES.map((language) => (
-                                <Menu.Item
-                                  key={language.code}
-                                  value={language.name}
-                                  onClick={() =>
-                                    updateLanguage(
-                                      'learn',
-                                      index,
-                                      'name',
-                                      language.name,
-                                    )
-                                  }
-                                >
-                                  <HStack gap={2}>
-                                    <FlagIcon
-                                      countryCode={languageToCountryCode(
-                                        language.code,
-                                      )}
-                                      size={16}
-                                    />
-                                    <Text>{language.name}</Text>
-                                  </HStack>
-                                </Menu.Item>
-                              ))}
+                              {getAvailableLearnLanguages(index).map(
+                                (language) => (
+                                  <Menu.Item
+                                    key={language.code}
+                                    value={language.name}
+                                    onClick={() =>
+                                      updateLanguage(
+                                        'learn',
+                                        index,
+                                        'name',
+                                        language.name,
+                                      )
+                                    }
+                                  >
+                                    <HStack gap={2}>
+                                      <FlagIcon
+                                        countryCode={languageToCountryCode(
+                                          language.code,
+                                        )}
+                                        size={16}
+                                      />
+                                      <Text>{language.name}</Text>
+                                    </HStack>
+                                  </Menu.Item>
+                                ),
+                              )}
                             </Menu.Content>
                           </Menu.Positioner>
                         </Portal>
@@ -720,7 +939,9 @@ export default function ProfilePage() {
                         <Portal>
                           <Menu.Positioner>
                             <Menu.Content>
-                              {LANGUAGE_LEVELS.map((level) => (
+                              {LANGUAGE_LEVELS.filter(
+                                (level) => level.value !== 'Native',
+                              ).map((level) => (
                                 <Menu.Item
                                   key={level.value}
                                   value={level.value}
@@ -762,7 +983,13 @@ export default function ProfilePage() {
                 size='lg'
                 flex={1}
                 colorScheme='blue'
-                disabled={formik.isSubmitting || hasIncompleteLanguages()}
+                disabled={
+                  formik.isSubmitting ||
+                  hasIncompleteLanguages() ||
+                  hasDuplicateLanguages() ||
+                  !hasMinimumLanguages() ||
+                  !hasNativeLanguage()
+                }
               >
                 {formik.isSubmitting ? 'Saving...' : 'Save Changes'}
               </Button>
