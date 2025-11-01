@@ -25,7 +25,10 @@ import { useRouter } from 'next/navigation';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '@/store/store';
 import { clearAuthUser } from '@/store/reducers/authSlice';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { client } from '@/lib/apolloClient';
+import { GET_CURRENT_USER } from '@/lib/authQueries';
+import { getSignedUrl } from '@/lib/supabaseClient';
 
 export const Header = () => {
   const router = useRouter();
@@ -33,6 +36,44 @@ export const Header = () => {
   const user = useSelector((state: RootState) => state.auth.user);
   const initialized = useSelector((state: RootState) => state.auth.initialized);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  // Fetch user avatar
+  useEffect(() => {
+    if (user && initialized) {
+      const fetchAvatar = async () => {
+        try {
+          const { data } = await client.query<{
+            me: { avatarUrl?: string | null };
+          }>({
+            query: GET_CURRENT_USER,
+            fetchPolicy: 'cache-first',
+          });
+          if (data?.me?.avatarUrl) {
+            // Check if it's a path format (bucket/path) or a full URL
+            if (
+              data.me.avatarUrl.startsWith('avatars/') ||
+              data.me.avatarUrl.startsWith('http') === false
+            ) {
+              // It's a path, convert to signed URL
+              try {
+                const signedUrl = await getSignedUrl(data.me.avatarUrl);
+                setAvatarUrl(signedUrl);
+              } catch (error) {
+                console.error('Failed to get signed URL:', error);
+              }
+            } else {
+              // It's already a full URL (legacy)
+              setAvatarUrl(data.me.avatarUrl);
+            }
+          }
+        } catch (error) {
+          // Silently fail - avatar is optional
+        }
+      };
+      fetchAvatar();
+    }
+  }, [user, initialized]);
 
   const handleAuthButtons = (path: string) => {
     router.push(path);
@@ -114,17 +155,33 @@ export const Header = () => {
                   w='40px'
                   h='40px'
                   borderRadius='full'
-                  bg='blue.500'
+                  overflow='hidden'
+                  bg={avatarUrl ? 'transparent' : 'blue.500'}
                   display='flex'
                   alignItems='center'
                   justifyContent='center'
                   cursor='pointer'
                   fontWeight='bold'
                   color='white'
-                  _hover={{ bg: 'blue.600' }}
-                  transition='background 0.2s'
+                  _hover={{ opacity: 0.9 }}
+                  transition='opacity 0.2s'
+                  border={avatarUrl ? '2px solid' : 'none'}
+                  borderColor='gray.300'
+                  _dark={{ borderColor: 'gray.600' }}
                 >
-                  {user.email.charAt(0).toUpperCase()}
+                  {avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt={user.email}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      }}
+                    />
+                  ) : (
+                    user.email.charAt(0).toUpperCase()
+                  )}
                 </Box>
               </Menu.Trigger>
               <Portal>
@@ -188,17 +245,33 @@ export const Header = () => {
                   w='36px'
                   h='36px'
                   borderRadius='full'
-                  bg='blue.500'
+                  overflow='hidden'
+                  bg={avatarUrl ? 'transparent' : 'blue.500'}
                   display='flex'
                   alignItems='center'
                   justifyContent='center'
                   cursor='pointer'
                   fontWeight='bold'
                   color='white'
-                  _hover={{ bg: 'blue.600' }}
-                  transition='background 0.2s'
+                  _hover={{ opacity: 0.9 }}
+                  transition='opacity 0.2s'
+                  border={avatarUrl ? '2px solid' : 'none'}
+                  borderColor='gray.300'
+                  _dark={{ borderColor: 'gray.600' }}
                 >
-                  {user.email.charAt(0).toUpperCase()}
+                  {avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt={user.email}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      }}
+                    />
+                  ) : (
+                    user.email.charAt(0).toUpperCase()
+                  )}
                 </Box>
               </Menu.Trigger>
               <Portal>

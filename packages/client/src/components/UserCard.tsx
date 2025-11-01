@@ -10,8 +10,10 @@ import {
   WrapItem,
 } from '@chakra-ui/react';
 import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import FlagIcon from './FlagIcon';
 import { languageToCountryCode } from '@/utils/languages';
+import { getSignedUrl } from '@/lib/supabaseClient';
 
 type Language = { name: string; level: string; code: string };
 
@@ -44,7 +46,34 @@ export const UserCard = ({
   languagesLearn,
 }: UserCardProps) => {
   const router = useRouter();
+  const [signedAvatarUrl, setSignedAvatarUrl] = useState<string | null>(null);
   const displayName = name || username || email;
+
+  // Convert avatar path to signed URL if it's a path (not a full URL)
+  useEffect(() => {
+    if (avatarUrl) {
+      // Check if it's a path format (bucket/path) or a full URL
+      if (
+        avatarUrl.startsWith('avatars/') ||
+        (avatarUrl.startsWith('http') === false && avatarUrl.includes('/'))
+      ) {
+        // It's a path, convert to signed URL
+        getSignedUrl(avatarUrl)
+          .then((url) => {
+            setSignedAvatarUrl(url);
+          })
+          .catch((error) => {
+            console.error('Failed to get signed URL for avatar:', error);
+            setSignedAvatarUrl(null);
+          });
+      } else {
+        // It's already a full URL (legacy or external)
+        setSignedAvatarUrl(avatarUrl);
+      }
+    } else {
+      setSignedAvatarUrl(null);
+    }
+  }, [avatarUrl]);
   const getCountryCode = (value?: string | null): string | null => {
     if (!value) return null;
     const trimmed = value.trim();
@@ -100,7 +129,7 @@ export const UserCard = ({
       <HStack gap={3} align='start'>
         <Box position='relative'>
           <Avatar.Root>
-            <Avatar.Image src={avatarUrl || undefined} />
+            <Avatar.Image src={signedAvatarUrl || undefined} />
             <Avatar.Fallback name={displayName} />
           </Avatar.Root>
           {countryCode && (

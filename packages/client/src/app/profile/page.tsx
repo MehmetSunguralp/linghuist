@@ -24,7 +24,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '@/store/store';
 import { toaster } from '@/components/ui/toaster';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { client } from '@/lib/apolloClient';
 import { GET_CURRENT_USER, UPDATE_PROFILE } from '@/lib/authQueries';
 import {
@@ -48,6 +48,8 @@ import {
 import FlagIcon from '@/components/FlagIcon';
 import { RESET_PASSWORD, DELETE_ACCOUNT } from '@/lib/authQueries';
 import UserCard from '@/components/UserCard';
+import { uploadImage, getSignedUrl, deleteImage } from '@/lib/supabaseClient';
+import imageCompression from 'browser-image-compression';
 
 interface Language {
   name: string;
@@ -82,6 +84,9 @@ export default function ProfilePage() {
   const [isFriend, setIsFriend] = useState(false);
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const [friendActionLoading, setFriendActionLoading] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarUrlSigned, setAvatarUrlSigned] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const profileUserId = params?.id as string | undefined;
   const isOwnProfile = !profileUserId || profileUserId === user?.id;
@@ -179,6 +184,30 @@ export default function ProfilePage() {
 
         if (profileData) {
           setProfile(profileData);
+
+          // Convert avatar path to signed URL if it's a path (not a full URL)
+          if (profileData.avatarUrl) {
+            // Check if it's a path format (bucket/path) or a full URL
+            if (
+              profileData.avatarUrl.startsWith('avatars/') ||
+              profileData.avatarUrl.startsWith('http') === false
+            ) {
+              // It's a path, convert to signed URL
+              try {
+                const signedUrl = await getSignedUrl(profileData.avatarUrl);
+                setAvatarUrlSigned(signedUrl);
+              } catch (error) {
+                console.error('Failed to get signed URL:', error);
+                setAvatarUrlSigned(null);
+              }
+            } else {
+              // It's already a full URL (legacy)
+              setAvatarUrlSigned(profileData.avatarUrl);
+            }
+          } else {
+            setAvatarUrlSigned(null);
+          }
+
           if (isOwnProfile) {
             formik.setValues({
               name: profileData.name || '',
@@ -232,7 +261,7 @@ export default function ProfilePage() {
       bio: Yup.string()
         .max(500, 'Bio must be less than 500 characters')
         .required('Bio is required'),
-      avatarUrl: Yup.string().url('Must be a valid URL'),
+      avatarUrl: Yup.string().nullable(),
       country: Yup.string().required('Country is required'),
       age: Yup.number()
         .typeError('Age must be a number')
@@ -376,6 +405,56 @@ export default function ProfilePage() {
           dispatch(
             setAuthUser({ id: data.updateMe.id, email: data.updateMe.email }),
           );
+          // Update profile state to reflect changes immediately
+          setProfile(data.updateMe);
+
+          // Update signed URL if avatar was changed
+          if (data.updateMe.avatarUrl) {
+            if (
+              data.updateMe.avatarUrl.startsWith('avatars/') ||
+              data.updateMe.avatarUrl.startsWith('http') === false
+            ) {
+              try {
+                const signedUrl = await getSignedUrl(data.updateMe.avatarUrl);
+                setAvatarUrlSigned(signedUrl);
+              } catch (error) {
+                console.error('Failed to get signed URL:', error);
+              }
+            } else {
+              setAvatarUrlSigned(data.updateMe.avatarUrl);
+            }
+          } else {
+            setAvatarUrlSigned(null);
+          }
+
+          // Refresh the profile data
+          const { data: refreshedData } = await client.query<{
+            me: UserProfile;
+          }>({
+            query: GET_CURRENT_USER,
+            fetchPolicy: 'network-only',
+          });
+          if (refreshedData?.me) {
+            setProfile(refreshedData.me);
+            // Update signed URL for refreshed data
+            if (refreshedData.me.avatarUrl) {
+              if (
+                refreshedData.me.avatarUrl.startsWith('avatars/') ||
+                refreshedData.me.avatarUrl.startsWith('http') === false
+              ) {
+                try {
+                  const signedUrl = await getSignedUrl(
+                    refreshedData.me.avatarUrl,
+                  );
+                  setAvatarUrlSigned(signedUrl);
+                } catch (error) {
+                  console.error('Failed to get signed URL:', error);
+                }
+              } else {
+                setAvatarUrlSigned(refreshedData.me.avatarUrl);
+              }
+            }
+          }
           toaster.create({
             title: 'Profile updated successfully!',
             type: 'success',
@@ -594,8 +673,95 @@ export default function ProfilePage() {
           mb={{ base: 6, sm: 8 }}
           textAlign='center'
         >
-          {/* Large Avatar */}
-          {profile?.avatarUrl && (
+          {/* Large Avatar with Menu for own profile */}
+          {isOwnProfile ? (
+            <Menu.Root>
+              <Menu.Trigger asChild>
+                <Box
+                  as='button'
+                  w={{ base: '120px', sm: '150px', md: '180px' }}
+                  h={{ base: '120px', sm: '150px', md: '180px' }}
+                  borderRadius='full'
+                  overflow='hidden'
+                  border='4px solid'
+                  borderColor='gray.200'
+                  _dark={{ borderColor: 'gray.700' }}
+                  mx='auto'
+                  mb={2}
+                  position='relative'
+                  cursor='pointer'
+                  _hover={{ opacity: 0.9 }}
+                  transition='opacity 0.2s'
+                >
+                  {uploadingAvatar ? (
+                    <Box
+                      w='full'
+                      h='full'
+                      bg='gray.100'
+                      _dark={{ bg: 'gray.800' }}
+                      display='flex'
+                      alignItems='center'
+                      justifyContent='center'
+                    >
+                      <Text fontSize='sm' color='gray.500'>
+                        Uploading...
+                      </Text>
+                    </Box>
+                  ) : avatarUrlSigned ? (
+                    <img
+                      src={avatarUrlSigned}
+                      alt={profile?.name || 'Profile'}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      }}
+                    />
+                  ) : (
+                    <Box
+                      w='full'
+                      h='full'
+                      bg='blue.500'
+                      display='flex'
+                      alignItems='center'
+                      justifyContent='center'
+                      color='white'
+                      fontSize={{ base: '3xl', sm: '4xl', md: '5xl' }}
+                      fontWeight='bold'
+                    >
+                      {user?.email?.charAt(0).toUpperCase() || 'U'}
+                    </Box>
+                  )}
+                </Box>
+              </Menu.Trigger>
+              <Portal>
+                <Menu.Positioner>
+                  <Menu.Content>
+                    {avatarUrlSigned && (
+                      <Menu.Item
+                        value='view'
+                        onClick={() => {
+                          if (avatarUrlSigned) {
+                            window.open(avatarUrlSigned, '_blank');
+                          }
+                        }}
+                      >
+                        View Image
+                      </Menu.Item>
+                    )}
+                    <Menu.Item
+                      value='change'
+                      onClick={() => {
+                        fileInputRef.current?.click();
+                      }}
+                    >
+                      Change Image
+                    </Menu.Item>
+                  </Menu.Content>
+                </Menu.Positioner>
+              </Portal>
+            </Menu.Root>
+          ) : avatarUrlSigned ? (
             <Box
               w={{ base: '120px', sm: '150px', md: '180px' }}
               h={{ base: '120px', sm: '150px', md: '180px' }}
@@ -609,8 +775,8 @@ export default function ProfilePage() {
               position='relative'
             >
               <img
-                src={profile.avatarUrl}
-                alt={profile.name || 'Profile'}
+                src={avatarUrlSigned}
+                alt={profile?.name || 'Profile'}
                 style={{
                   width: '100%',
                   height: '100%',
@@ -618,6 +784,149 @@ export default function ProfilePage() {
                 }}
               />
             </Box>
+          ) : (
+            <Box
+              w={{ base: '120px', sm: '150px', md: '180px' }}
+              h={{ base: '120px', sm: '150px', md: '180px' }}
+              borderRadius='full'
+              bg='blue.500'
+              display='flex'
+              alignItems='center'
+              justifyContent='center'
+              color='white'
+              fontSize={{ base: '3xl', sm: '4xl', md: '5xl' }}
+              fontWeight='bold'
+              mx='auto'
+              mb={2}
+            >
+              {(profile?.name || profile?.username || 'U')
+                ?.charAt(0)
+                .toUpperCase()}
+            </Box>
+          )}
+
+          {/* Hidden file input for avatar upload */}
+          {isOwnProfile && user && (
+            <Input
+              ref={fileInputRef}
+              type='file'
+              accept='image/*'
+              display='none'
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                // Validate file size (5MB)
+                const fileSizeMB = file.size / (1024 * 1024);
+                if (fileSizeMB > 5) {
+                  toaster.create({
+                    title: 'File too large',
+                    description: 'Image must be less than 5MB',
+                    type: 'error',
+                  });
+                  return;
+                }
+
+                // Validate file type
+                if (!file.type.startsWith('image/')) {
+                  toaster.create({
+                    title: 'Invalid file type',
+                    description: 'Please select an image file',
+                    type: 'error',
+                  });
+                  return;
+                }
+
+                setUploadingAvatar(true);
+                try {
+                  // Compress image before uploading (max 500KB)
+                  const options = {
+                    maxSizeMB: 0.5, // 500KB
+                    maxWidthOrHeight: 1920,
+                    useWebWorker: true,
+                    fileType: file.type,
+                  };
+
+                  let compressedFile: File;
+                  try {
+                    compressedFile = await imageCompression(file, options);
+                    console.log(
+                      'Original file size:',
+                      (file.size / 1024 / 1024).toFixed(2),
+                      'MB',
+                    );
+                    console.log(
+                      'Compressed file size:',
+                      (compressedFile.size / 1024 / 1024).toFixed(2),
+                      'MB',
+                    );
+                  } catch (compressError) {
+                    console.error('Image compression failed:', compressError);
+                    // Continue with original file if compression fails
+                    compressedFile = file;
+                  }
+
+                  // Delete old avatar if it exists
+                  const currentAvatarUrl =
+                    formik.values.avatarUrl || profile?.avatarUrl;
+                  if (currentAvatarUrl) {
+                    try {
+                      await deleteImage(currentAvatarUrl);
+                      console.log('Old avatar deleted successfully');
+                    } catch (deleteError) {
+                      // Non-critical error, continue with upload
+                      console.warn('Failed to delete old avatar:', deleteError);
+                    }
+                  }
+
+                  // Upload compressed image - returns file path, not URL
+                  const filePath = await uploadImage(
+                    compressedFile,
+                    'avatars',
+                    'profile',
+                    user.id,
+                  );
+                  formik.setFieldValue('avatarUrl', filePath);
+
+                  // Auto-save avatar path
+                  const { data } = await client.mutate<{
+                    updateMe: UserProfile;
+                  }>({
+                    mutation: UPDATE_PROFILE,
+                    variables: {
+                      data: {
+                        avatarUrl: filePath,
+                      },
+                    },
+                  });
+
+                  if (data?.updateMe) {
+                    setProfile(data.updateMe);
+                    // Get signed URL for the new avatar
+                    try {
+                      const signedUrl = await getSignedUrl(filePath);
+                      setAvatarUrlSigned(signedUrl);
+                    } catch (error) {
+                      console.error('Failed to get signed URL:', error);
+                    }
+                    toaster.create({
+                      title: 'Avatar updated successfully!',
+                      type: 'success',
+                    });
+                  }
+                } catch (error: any) {
+                  toaster.create({
+                    title: error.message || 'Failed to upload avatar',
+                    type: 'error',
+                  });
+                } finally {
+                  setUploadingAvatar(false);
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = '';
+                  }
+                }
+              }}
+            />
           )}
 
           <Heading size={{ base: '2xl', sm: '3xl', md: '4xl' }}>
@@ -897,47 +1206,6 @@ export default function ProfilePage() {
                         mt={1}
                       >
                         {formik.errors.bio}
-                      </Text>
-                    )}
-                  </Box>
-
-                  <Box>
-                    <Text
-                      mb={1}
-                      fontWeight='medium'
-                      fontSize={{ base: 'sm', sm: 'md' }}
-                    >
-                      Avatar URL
-                    </Text>
-                    <Box position='relative'>
-                      <Input
-                        name='avatarUrl'
-                        placeholder='https://example.com/avatar.jpg'
-                        size={{ base: 'md', sm: 'lg' }}
-                        value={formik.values.avatarUrl}
-                        onChange={formik.handleChange}
-                        onBlur={formik.handleBlur}
-                        pr={10}
-                      />
-                      <Box
-                        position='absolute'
-                        right={3}
-                        top='50%'
-                        transform='translateY(-50%)'
-                        pointerEvents='none'
-                      >
-                        <Icon color='gray.400' size='md'>
-                          <MdEdit />
-                        </Icon>
-                      </Box>
-                    </Box>
-                    {formik.touched.avatarUrl && formik.errors.avatarUrl && (
-                      <Text
-                        color='red.500'
-                        fontSize={{ base: 'xs', sm: 'sm' }}
-                        mt={1}
-                      >
-                        {formik.errors.avatarUrl}
                       </Text>
                     )}
                   </Box>
