@@ -38,6 +38,8 @@ import {
 } from '@/lib/userQueries';
 import { setAuthUser } from '@/store/reducers/authSlice';
 import { MdDelete, MdAdd, MdEdit, MdClose } from 'react-icons/md';
+import { IoChatbubbleEllipsesOutline } from 'react-icons/io5';
+
 import { useParams } from 'next/navigation';
 import {
   LANGUAGES,
@@ -944,6 +946,7 @@ export default function ProfilePage() {
           {!isOwnProfile && profileUserId && (
             <HStack gap={3} justify='center' flexWrap='wrap'>
               <Button
+                variant={'outline'}
                 colorScheme={isFriend ? 'red' : 'green'}
                 size={{ base: 'md', sm: 'lg' }}
                 onClick={async () => {
@@ -1032,7 +1035,12 @@ export default function ProfilePage() {
                     });
                   }}
                 >
-                  Start Chat
+                  <>
+                    <Icon>
+                      <IoChatbubbleEllipsesOutline />
+                    </Icon>
+                    <Text>Start Chat</Text>
+                  </>
                 </Button>
               )}
             </HStack>
