@@ -1,133 +1,33 @@
-// types.ts — shared client types (based on Prisma schema)
+// AllTypes.ts - Central export file for all types
+// Re-exports from modular type files for convenience
 
-export type Role = 'USER' | 'ADMIN' | 'MODERATOR';
-export type NotificationType = 'LIKE' | 'COMMENT' | 'FOLLOW' | 'MESSAGE';
-export type MessageType = 'TEXT' | 'IMAGE' | 'VOICE';
-export type FriendRequestStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED';
+// Common types
+export type {
+  Role,
+  NotificationType,
+  MessageType,
+  FriendRequestStatus,
+  Language,
+  LanguageInput,
+} from './CommonTypes';
 
-export interface Language {
-  id: string;
-  name: string;
-  level: string;
-  code: string;
-}
+// User types
+export type { User, UserProfile } from './UserTypes';
 
-export interface User {
-  id: string;
-  username?: string;
-  name?: string;
-  email: string;
-  role: Role;
-  avatarUrl?: string;
-  bio?: string;
-  country?: string;
-  age?: number;
-  languagesKnown?: Language[];
-  languagesLearn?: Language[];
-  isOnline: boolean;
-  lastOnline?: string;
-  createdAt: string;
-  updatedAt: string;
-  isVerified: boolean;
-}
+// Post types
+export type { Post, Comment, Like } from './PostTypes';
 
-export interface Post {
-  id: string;
-  authorId: string;
-  author?: Partial<User>;
-  content: string;
-  imageUrl?: string;
-  allowComments: boolean;
-  likes?: Like[];
-  comments?: Comment[];
-  createdAt: string;
-  updatedAt: string;
-}
+// Chat types
+export type { Chat, ChatParticipant, Message } from './ChatTypes';
 
-export interface Comment {
-  id: string;
-  postId: string;
-  authorId: string;
-  author?: Partial<User>;
-  content: string;
-  createdAt: string;
-}
+// Notification types
+export type { Notification } from './NotificationTypes';
 
-export interface Like {
-  id: string;
-  postId: string;
-  userId: string;
-  createdAt: string;
-}
+// FriendRequest types
+export type { FriendRequest } from './FriendRequestTypes';
 
-export interface Notification {
-  id: string;
-  type: NotificationType;
-  message: string;
-  recipientId: string;
-  actorId: string;
-  postId?: string;
-  commentId?: string;
-  read: boolean;
-  createdAt: string;
-  recipient?: Partial<User>;
-  actor?: Partial<User>;
-  post?: Partial<Post>;
-  comment?: Partial<Comment>;
-}
+// Auth types
+export type { SignupInput, LoginInput, AuthResponse } from './AuthTypes';
 
-export interface Chat {
-  id: string;
-  participants?: ChatParticipant[];
-  messages?: Message[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ChatParticipant {
-  id: string;
-  chatId: string;
-  userId: string;
-  user?: Partial<User>;
-}
-
-export interface Message {
-  id: string;
-  senderId: string;
-  receiverId: string;
-  type: MessageType;
-  content?: string;
-  mediaUrl?: string;
-  createdAt: string;
-  read: boolean;
-  chatId: string;
-  sender?: Partial<User>;
-  receiver?: Partial<User>;
-}
-
-export interface FriendRequest {
-  id: string;
-  senderId: string;
-  receiverId: string;
-  status: FriendRequestStatus;
-  createdAt: string;
-  sender?: Partial<User>;
-  receiver?: Partial<User>;
-}
-
-// Auth / GraphQL inputs
-export interface SignupInput {
-  email: string;
-  password: string;
-  name?: string;
-}
-
-export interface LoginInput {
-  email: string;
-  password: string;
-}
-
-export interface AuthResponse {
-  token: string;
-  user: User;
-}
+// Component types
+export type { UserCardProps, ImageUploadProps } from './ComponentTypes';

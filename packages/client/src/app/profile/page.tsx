@@ -52,26 +52,7 @@ import { RESET_PASSWORD, DELETE_ACCOUNT } from '@/lib/authQueries';
 import UserCard from '@/components/UserCard';
 import { uploadImage, getSignedUrl, deleteImage } from '@/lib/supabaseClient';
 import imageCompression from 'browser-image-compression';
-
-interface Language {
-  name: string;
-  level: string;
-  code: string;
-}
-
-interface UserProfile {
-  id: string;
-  email: string;
-  name?: string;
-  username?: string;
-  bio?: string;
-  avatarUrl?: string;
-  country?: string | null;
-  age?: number | null;
-  role?: 'USER' | 'ADMIN' | 'MODERATOR';
-  languagesKnown?: Language[];
-  languagesLearn?: Language[];
-}
+import { LanguageInput, UserProfile } from '@/types/AllTypes';
 
 export default function ProfilePage() {
   const dispatch = useDispatch<AppDispatch>();
@@ -248,8 +229,8 @@ export default function ProfilePage() {
       avatarUrl: '',
       country: '',
       age: '',
-      languagesKnown: [] as Language[],
-      languagesLearn: [] as Language[],
+      languagesKnown: [] as LanguageInput[],
+      languagesLearn: [] as LanguageInput[],
     },
     validationSchema: Yup.object({
       name: Yup.string().required('Name is required'),
@@ -275,12 +256,12 @@ export default function ProfilePage() {
       try {
         // Check for incomplete language entries
         const incompleteKnown = values.languagesKnown.some(
-          (lang) =>
+          (lang: LanguageInput) =>
             (lang.name.trim() !== '' && lang.level.trim() === '') ||
             (lang.name.trim() === '' && lang.level.trim() !== ''),
         );
         const incompleteLearn = values.languagesLearn.some(
-          (lang) =>
+          (lang: LanguageInput) =>
             (lang.name.trim() !== '' && lang.level.trim() === '') ||
             (lang.name.trim() === '' && lang.level.trim() !== ''),
         );
@@ -297,13 +278,13 @@ export default function ProfilePage() {
 
         // Check for duplicate languages
         const knownLanguages = values.languagesKnown
-          .map((lang) => lang.name.trim())
+          .map((lang: LanguageInput) => lang.name.trim())
           .filter((name) => name !== '');
         const knownDuplicates =
           new Set(knownLanguages).size !== knownLanguages.length;
 
         const learnLanguages = values.languagesLearn
-          .map((lang) => lang.name.trim())
+          .map((lang: LanguageInput) => lang.name.trim())
           .filter((name) => name !== '');
         const learnDuplicates =
           new Set(learnLanguages).size !== learnLanguages.length;
@@ -319,7 +300,7 @@ export default function ProfilePage() {
         }
 
         // Filter out empty entries and strip __typename from language objects
-        const cleanLanguages = (langs: Language[]) =>
+        const cleanLanguages = (langs: LanguageInput[]) =>
           langs
             .filter(
               (lang) => lang.name.trim() !== '' && lang.level.trim() !== '',
@@ -351,13 +332,13 @@ export default function ProfilePage() {
         // Check if any learned languages are Native/Fluent in known languages
         const nativeFluentKnown = values.languagesKnown
           .filter(
-            (lang) =>
+            (lang: LanguageInput) =>
               lang.name.trim() !== '' &&
               (lang.level === 'Native' || lang.level === 'Fluent'),
           )
-          .map((lang) => lang.name);
+          .map((lang: LanguageInput) => lang.name);
         const conflictingLearn = values.languagesLearn.some(
-          (lang) =>
+          (lang: LanguageInput) =>
             lang.name.trim() !== '' && nativeFluentKnown.includes(lang.name),
         );
 
@@ -474,18 +455,19 @@ export default function ProfilePage() {
   const addLanguage = (type: 'known' | 'learn') => {
     const field = type === 'known' ? 'languagesKnown' : 'languagesLearn';
     formik.setFieldValue(field, [
-      ...formik.values[field],
+      ...(formik.values[field] as LanguageInput[]),
       { name: '', level: '', code: '' },
     ]);
   };
 
   const removeLanguage = (type: 'known' | 'learn', index: number) => {
     const field = type === 'known' ? 'languagesKnown' : 'languagesLearn';
-    const currentList = formik.values[field];
+    const currentList = formik.values[field] as LanguageInput[];
 
     // Count complete languages (with both name and level)
     const completeLanguages = currentList.filter(
-      (lang) => lang.name.trim() !== '' && lang.level.trim() !== '',
+      (lang: LanguageInput) =>
+        lang.name.trim() !== '' && lang.level.trim() !== '',
     );
 
     // Check if this is the last complete language
@@ -507,7 +489,7 @@ export default function ProfilePage() {
         languageToRemove.name.trim() !== ''
       ) {
         const remainingNativeLanguages = currentList.filter(
-          (lang, idx) =>
+          (lang: LanguageInput, idx) =>
             idx !== index && lang.name.trim() !== '' && lang.level === 'Native',
         );
 
@@ -530,11 +512,11 @@ export default function ProfilePage() {
   const updateLanguage = (
     type: 'known' | 'learn',
     index: number,
-    key: keyof Language,
+    key: keyof LanguageInput,
     value: string,
   ) => {
     const field = type === 'known' ? 'languagesKnown' : 'languagesLearn';
-    const updated = [...formik.values[field]];
+    const updated = [...(formik.values[field] as LanguageInput[])];
 
     // If changing level from Native to something else in known languages, check if it's the last native
     if (
@@ -543,8 +525,10 @@ export default function ProfilePage() {
       updated[index].level === 'Native' &&
       value !== 'Native'
     ) {
-      const nativeCount = formik.values.languagesKnown.filter(
-        (lang, idx) =>
+      const nativeCount = (
+        formik.values.languagesKnown as LanguageInput[]
+      ).filter(
+        (lang: LanguageInput, idx) =>
           idx !== index && lang.name.trim() !== '' && lang.level === 'Native',
       ).length;
 
@@ -571,27 +555,31 @@ export default function ProfilePage() {
 
   // Get languages that are already selected in known languages with Native or Fluent level
   const excludedFromLearnLanguages = useMemo(() => {
-    return formik.values.languagesKnown
+    return (formik.values.languagesKnown as LanguageInput[])
       .filter(
-        (lang) =>
+        (lang: LanguageInput) =>
           lang.name.trim() !== '' &&
           (lang.level === 'Native' || lang.level === 'Fluent'),
       )
-      .map((lang) => lang.name);
+      .map((lang: LanguageInput) => lang.name);
   }, [formik.values.languagesKnown]);
 
   // Get available languages for known languages list (exclude duplicates)
   const getAvailableKnownLanguages = (currentIndex: number) => {
-    const selectedLanguages = formik.values.languagesKnown
-      .map((lang, idx) => (idx !== currentIndex ? lang.name : ''))
+    const selectedLanguages = (formik.values.languagesKnown as LanguageInput[])
+      .map((lang: LanguageInput, idx) =>
+        idx !== currentIndex ? lang.name : '',
+      )
       .filter((name) => name.trim() !== '');
     return LANGUAGES.filter((lang) => !selectedLanguages.includes(lang.name));
   };
 
   // Get available languages for learned languages list (exclude duplicates and Native/Fluent from known)
   const getAvailableLearnLanguages = (currentIndex: number) => {
-    const selectedLanguages = formik.values.languagesLearn
-      .map((lang, idx) => (idx !== currentIndex ? lang.name : ''))
+    const selectedLanguages = (formik.values.languagesLearn as LanguageInput[])
+      .map((lang: LanguageInput, idx) =>
+        idx !== currentIndex ? lang.name : '',
+      )
       .filter((name) => name.trim() !== '');
     return LANGUAGES.filter(
       (lang) =>
@@ -602,13 +590,17 @@ export default function ProfilePage() {
 
   // Check if there are any incomplete language entries
   const hasIncompleteLanguages = () => {
-    const incompleteKnown = formik.values.languagesKnown.some(
-      (lang) =>
+    const incompleteKnown = (
+      formik.values.languagesKnown as LanguageInput[]
+    ).some(
+      (lang: LanguageInput) =>
         (lang.name.trim() !== '' && lang.level.trim() === '') ||
         (lang.name.trim() === '' && lang.level.trim() !== ''),
     );
-    const incompleteLearn = formik.values.languagesLearn.some(
-      (lang) =>
+    const incompleteLearn = (
+      formik.values.languagesLearn as LanguageInput[]
+    ).some(
+      (lang: LanguageInput) =>
         (lang.name.trim() !== '' && lang.level.trim() === '') ||
         (lang.name.trim() === '' && lang.level.trim() !== ''),
     );
@@ -617,14 +609,14 @@ export default function ProfilePage() {
 
   // Check if there are duplicate languages
   const hasDuplicateLanguages = () => {
-    const knownLanguages = formik.values.languagesKnown
-      .map((lang) => lang.name.trim())
+    const knownLanguages = (formik.values.languagesKnown as LanguageInput[])
+      .map((lang: LanguageInput) => lang.name.trim())
       .filter((name) => name !== '');
     const knownDuplicates =
       new Set(knownLanguages).size !== knownLanguages.length;
 
-    const learnLanguages = formik.values.languagesLearn
-      .map((lang) => lang.name.trim())
+    const learnLanguages = (formik.values.languagesLearn as LanguageInput[])
+      .map((lang: LanguageInput) => lang.name.trim())
       .filter((name) => name !== '');
     const learnDuplicates =
       new Set(learnLanguages).size !== learnLanguages.length;
@@ -634,19 +626,23 @@ export default function ProfilePage() {
 
   // Check if minimum language requirements are met
   const hasMinimumLanguages = () => {
-    const cleanKnown = formik.values.languagesKnown.filter(
-      (lang) => lang.name.trim() !== '' && lang.level.trim() !== '',
+    const cleanKnown = (formik.values.languagesKnown as LanguageInput[]).filter(
+      (lang: LanguageInput) =>
+        lang.name.trim() !== '' && lang.level.trim() !== '',
     );
-    const cleanLearn = formik.values.languagesLearn.filter(
-      (lang) => lang.name.trim() !== '' && lang.level.trim() !== '',
+    const cleanLearn = (formik.values.languagesLearn as LanguageInput[]).filter(
+      (lang: LanguageInput) =>
+        lang.name.trim() !== '' && lang.level.trim() !== '',
     );
     return cleanKnown.length >= 1 && cleanLearn.length >= 1;
   };
 
   // Check if there's at least one native language
   const hasNativeLanguage = () => {
-    const nativeLanguages = formik.values.languagesKnown.filter(
-      (lang) =>
+    const nativeLanguages = (
+      formik.values.languagesKnown as LanguageInput[]
+    ).filter(
+      (lang: LanguageInput) =>
         lang.name.trim() !== '' &&
         lang.level.trim() !== '' &&
         lang.level === 'Native',
@@ -932,9 +928,7 @@ export default function ProfilePage() {
           )}
 
           <Heading size={{ base: '2xl', sm: '3xl', md: '4xl' }}>
-            {isOwnProfile
-              ? 'Account'
-              : profile?.name || profile?.username || 'Profile'}
+            {isOwnProfile ? 'Account' : profile?.username || 'Profile'}
           </Heading>
           <Text color='gray.400' fontSize={{ base: 'sm', sm: 'md', md: 'lg' }}>
             {isOwnProfile
@@ -1412,136 +1406,138 @@ export default function ProfilePage() {
                   </Button>
                 </HStack>
                 <VStack gap={{ base: 2, sm: 3 }} align='stretch'>
-                  {formik.values.languagesKnown.map((lang, index) => (
-                    <HStack
-                      key={index}
-                      gap={{ base: 1, sm: 2 }}
-                      position='relative'
-                      flexWrap={{ base: 'wrap', sm: 'nowrap' }}
-                    >
-                      <Box
-                        flex={1}
-                        minW={{ base: 'calc(100% - 80px)', sm: 'auto' }}
+                  {(formik.values.languagesKnown as LanguageInput[]).map(
+                    (lang, index) => (
+                      <HStack
+                        key={index}
+                        gap={{ base: 1, sm: 2 }}
+                        position='relative'
+                        flexWrap={{ base: 'wrap', sm: 'nowrap' }}
                       >
-                        <Menu.Root
-                          positioning={{ sameWidth: true, flip: true }}
+                        <Box
+                          flex={1}
+                          minW={{ base: 'calc(100% - 80px)', sm: 'auto' }}
                         >
-                          <Menu.Trigger asChild>
-                            <Button
-                              variant='outline'
-                              size={{ base: 'sm', sm: 'md' }}
-                              width='full'
-                              justifyContent='space-between'
-                            >
-                              <HStack gap={2}>
-                                <FlagIcon
-                                  countryCode={
-                                    lang.code
-                                      ? languageToCountryCode(lang.code)
-                                      : lang.name
-                                        ? languageToCountryCode(
-                                            getLanguageCode(lang.name),
+                          <Menu.Root
+                            positioning={{ sameWidth: true, flip: true }}
+                          >
+                            <Menu.Trigger asChild>
+                              <Button
+                                variant='outline'
+                                size={{ base: 'sm', sm: 'md' }}
+                                width='full'
+                                justifyContent='space-between'
+                              >
+                                <HStack gap={2}>
+                                  <FlagIcon
+                                    countryCode={
+                                      lang.code
+                                        ? languageToCountryCode(lang.code)
+                                        : lang.name
+                                          ? languageToCountryCode(
+                                              getLanguageCode(lang.name),
+                                            )
+                                          : undefined
+                                    }
+                                    size={16}
+                                  />
+                                  <Text fontSize={{ base: 'xs', sm: 'sm' }}>
+                                    {lang.name || 'Select language'}
+                                  </Text>
+                                </HStack>
+                              </Button>
+                            </Menu.Trigger>
+                            <Portal>
+                              <Menu.Positioner>
+                                <Menu.Content maxH='300px' overflowY='auto'>
+                                  {getAvailableKnownLanguages(index).map(
+                                    (language) => (
+                                      <Menu.Item
+                                        key={language.code}
+                                        value={language.name}
+                                        onClick={() =>
+                                          updateLanguage(
+                                            'known',
+                                            index,
+                                            'name',
+                                            language.name,
                                           )
-                                        : undefined
-                                  }
-                                  size={16}
-                                />
+                                        }
+                                      >
+                                        <HStack gap={2}>
+                                          <FlagIcon
+                                            countryCode={languageToCountryCode(
+                                              language.code,
+                                            )}
+                                            size={16}
+                                          />
+                                          <Text>{language.name}</Text>
+                                        </HStack>
+                                      </Menu.Item>
+                                    ),
+                                  )}
+                                </Menu.Content>
+                              </Menu.Positioner>
+                            </Portal>
+                          </Menu.Root>
+                        </Box>
+
+                        <Box
+                          w={{ base: 'calc(100% - 60px)', sm: '200px' }}
+                          flexShrink={0}
+                        >
+                          <Menu.Root
+                            positioning={{ sameWidth: true, flip: true }}
+                          >
+                            <Menu.Trigger asChild>
+                              <Button
+                                variant='outline'
+                                size={{ base: 'sm', sm: 'md' }}
+                                width='full'
+                                justifyContent='space-between'
+                              >
                                 <Text fontSize={{ base: 'xs', sm: 'sm' }}>
-                                  {lang.name || 'Select language'}
+                                  {lang.level || 'Select level'}
                                 </Text>
-                              </HStack>
-                            </Button>
-                          </Menu.Trigger>
-                          <Portal>
-                            <Menu.Positioner>
-                              <Menu.Content maxH='300px' overflowY='auto'>
-                                {getAvailableKnownLanguages(index).map(
-                                  (language) => (
+                              </Button>
+                            </Menu.Trigger>
+                            <Portal>
+                              <Menu.Positioner>
+                                <Menu.Content>
+                                  {LANGUAGE_LEVELS.map((level) => (
                                     <Menu.Item
-                                      key={language.code}
-                                      value={language.name}
+                                      key={level.value}
+                                      value={level.value}
                                       onClick={() =>
                                         updateLanguage(
                                           'known',
                                           index,
-                                          'name',
-                                          language.name,
+                                          'level',
+                                          level.value,
                                         )
                                       }
                                     >
-                                      <HStack gap={2}>
-                                        <FlagIcon
-                                          countryCode={languageToCountryCode(
-                                            language.code,
-                                          )}
-                                          size={16}
-                                        />
-                                        <Text>{language.name}</Text>
-                                      </HStack>
+                                      {level.label}
                                     </Menu.Item>
-                                  ),
-                                )}
-                              </Menu.Content>
-                            </Menu.Positioner>
-                          </Portal>
-                        </Menu.Root>
-                      </Box>
+                                  ))}
+                                </Menu.Content>
+                              </Menu.Positioner>
+                            </Portal>
+                          </Menu.Root>
+                        </Box>
 
-                      <Box
-                        w={{ base: 'calc(100% - 60px)', sm: '200px' }}
-                        flexShrink={0}
-                      >
-                        <Menu.Root
-                          positioning={{ sameWidth: true, flip: true }}
+                        <IconButton
+                          aria-label='Remove'
+                          onClick={() => removeLanguage('known', index)}
+                          colorScheme='red'
+                          variant='ghost'
+                          size={{ base: 'sm', sm: 'md' }}
                         >
-                          <Menu.Trigger asChild>
-                            <Button
-                              variant='outline'
-                              size={{ base: 'sm', sm: 'md' }}
-                              width='full'
-                              justifyContent='space-between'
-                            >
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }}>
-                                {lang.level || 'Select level'}
-                              </Text>
-                            </Button>
-                          </Menu.Trigger>
-                          <Portal>
-                            <Menu.Positioner>
-                              <Menu.Content>
-                                {LANGUAGE_LEVELS.map((level) => (
-                                  <Menu.Item
-                                    key={level.value}
-                                    value={level.value}
-                                    onClick={() =>
-                                      updateLanguage(
-                                        'known',
-                                        index,
-                                        'level',
-                                        level.value,
-                                      )
-                                    }
-                                  >
-                                    {level.label}
-                                  </Menu.Item>
-                                ))}
-                              </Menu.Content>
-                            </Menu.Positioner>
-                          </Portal>
-                        </Menu.Root>
-                      </Box>
-
-                      <IconButton
-                        aria-label='Remove'
-                        onClick={() => removeLanguage('known', index)}
-                        colorScheme='red'
-                        variant='ghost'
-                        size={{ base: 'sm', sm: 'md' }}
-                      >
-                        <MdDelete />
-                      </IconButton>
-                    </HStack>
-                  ))}
+                          <MdDelete />
+                        </IconButton>
+                      </HStack>
+                    ),
+                  )}
                 </VStack>
               </Box>
 
@@ -1570,138 +1566,140 @@ export default function ProfilePage() {
                   </Button>
                 </HStack>
                 <VStack gap={{ base: 2, sm: 3 }} align='stretch'>
-                  {formik.values.languagesLearn.map((lang, index) => (
-                    <HStack
-                      key={index}
-                      gap={{ base: 1, sm: 2 }}
-                      position='relative'
-                      flexWrap={{ base: 'wrap', sm: 'nowrap' }}
-                    >
-                      <Box
-                        flex={1}
-                        minW={{ base: 'calc(100% - 80px)', sm: 'auto' }}
+                  {(formik.values.languagesLearn as LanguageInput[]).map(
+                    (lang, index) => (
+                      <HStack
+                        key={index}
+                        gap={{ base: 1, sm: 2 }}
+                        position='relative'
+                        flexWrap={{ base: 'wrap', sm: 'nowrap' }}
                       >
-                        <Menu.Root
-                          positioning={{ sameWidth: true, flip: true }}
+                        <Box
+                          flex={1}
+                          minW={{ base: 'calc(100% - 80px)', sm: 'auto' }}
                         >
-                          <Menu.Trigger asChild>
-                            <Button
-                              variant='outline'
-                              size={{ base: 'sm', sm: 'md' }}
-                              width='full'
-                              justifyContent='space-between'
-                            >
-                              <HStack gap={2}>
-                                <FlagIcon
-                                  countryCode={
-                                    lang.code
-                                      ? languageToCountryCode(lang.code)
-                                      : lang.name
-                                        ? languageToCountryCode(
-                                            getLanguageCode(lang.name),
+                          <Menu.Root
+                            positioning={{ sameWidth: true, flip: true }}
+                          >
+                            <Menu.Trigger asChild>
+                              <Button
+                                variant='outline'
+                                size={{ base: 'sm', sm: 'md' }}
+                                width='full'
+                                justifyContent='space-between'
+                              >
+                                <HStack gap={2}>
+                                  <FlagIcon
+                                    countryCode={
+                                      lang.code
+                                        ? languageToCountryCode(lang.code)
+                                        : lang.name
+                                          ? languageToCountryCode(
+                                              getLanguageCode(lang.name),
+                                            )
+                                          : undefined
+                                    }
+                                    size={16}
+                                  />
+                                  <Text fontSize={{ base: 'xs', sm: 'sm' }}>
+                                    {lang.name || 'Select language'}
+                                  </Text>
+                                </HStack>
+                              </Button>
+                            </Menu.Trigger>
+                            <Portal>
+                              <Menu.Positioner>
+                                <Menu.Content maxH='300px' overflowY='auto'>
+                                  {getAvailableLearnLanguages(index).map(
+                                    (language) => (
+                                      <Menu.Item
+                                        key={language.code}
+                                        value={language.name}
+                                        onClick={() =>
+                                          updateLanguage(
+                                            'learn',
+                                            index,
+                                            'name',
+                                            language.name,
                                           )
-                                        : undefined
-                                  }
-                                  size={16}
-                                />
+                                        }
+                                      >
+                                        <HStack gap={2}>
+                                          <FlagIcon
+                                            countryCode={languageToCountryCode(
+                                              language.code,
+                                            )}
+                                            size={16}
+                                          />
+                                          <Text>{language.name}</Text>
+                                        </HStack>
+                                      </Menu.Item>
+                                    ),
+                                  )}
+                                </Menu.Content>
+                              </Menu.Positioner>
+                            </Portal>
+                          </Menu.Root>
+                        </Box>
+
+                        <Box
+                          w={{ base: 'calc(100% - 60px)', sm: '200px' }}
+                          flexShrink={0}
+                        >
+                          <Menu.Root
+                            positioning={{ sameWidth: true, flip: true }}
+                          >
+                            <Menu.Trigger asChild>
+                              <Button
+                                variant='outline'
+                                size={{ base: 'sm', sm: 'md' }}
+                                width='full'
+                                justifyContent='space-between'
+                              >
                                 <Text fontSize={{ base: 'xs', sm: 'sm' }}>
-                                  {lang.name || 'Select language'}
+                                  {lang.level || 'Select level'}
                                 </Text>
-                              </HStack>
-                            </Button>
-                          </Menu.Trigger>
-                          <Portal>
-                            <Menu.Positioner>
-                              <Menu.Content maxH='300px' overflowY='auto'>
-                                {getAvailableLearnLanguages(index).map(
-                                  (language) => (
+                              </Button>
+                            </Menu.Trigger>
+                            <Portal>
+                              <Menu.Positioner>
+                                <Menu.Content>
+                                  {LANGUAGE_LEVELS.filter(
+                                    (level) => level.value !== 'Native',
+                                  ).map((level) => (
                                     <Menu.Item
-                                      key={language.code}
-                                      value={language.name}
+                                      key={level.value}
+                                      value={level.value}
                                       onClick={() =>
                                         updateLanguage(
                                           'learn',
                                           index,
-                                          'name',
-                                          language.name,
+                                          'level',
+                                          level.value,
                                         )
                                       }
                                     >
-                                      <HStack gap={2}>
-                                        <FlagIcon
-                                          countryCode={languageToCountryCode(
-                                            language.code,
-                                          )}
-                                          size={16}
-                                        />
-                                        <Text>{language.name}</Text>
-                                      </HStack>
+                                      {level.label}
                                     </Menu.Item>
-                                  ),
-                                )}
-                              </Menu.Content>
-                            </Menu.Positioner>
-                          </Portal>
-                        </Menu.Root>
-                      </Box>
+                                  ))}
+                                </Menu.Content>
+                              </Menu.Positioner>
+                            </Portal>
+                          </Menu.Root>
+                        </Box>
 
-                      <Box
-                        w={{ base: 'calc(100% - 60px)', sm: '200px' }}
-                        flexShrink={0}
-                      >
-                        <Menu.Root
-                          positioning={{ sameWidth: true, flip: true }}
+                        <IconButton
+                          aria-label='Remove'
+                          onClick={() => removeLanguage('learn', index)}
+                          colorScheme='red'
+                          variant='ghost'
+                          size={{ base: 'sm', sm: 'md' }}
                         >
-                          <Menu.Trigger asChild>
-                            <Button
-                              variant='outline'
-                              size={{ base: 'sm', sm: 'md' }}
-                              width='full'
-                              justifyContent='space-between'
-                            >
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }}>
-                                {lang.level || 'Select level'}
-                              </Text>
-                            </Button>
-                          </Menu.Trigger>
-                          <Portal>
-                            <Menu.Positioner>
-                              <Menu.Content>
-                                {LANGUAGE_LEVELS.filter(
-                                  (level) => level.value !== 'Native',
-                                ).map((level) => (
-                                  <Menu.Item
-                                    key={level.value}
-                                    value={level.value}
-                                    onClick={() =>
-                                      updateLanguage(
-                                        'learn',
-                                        index,
-                                        'level',
-                                        level.value,
-                                      )
-                                    }
-                                  >
-                                    {level.label}
-                                  </Menu.Item>
-                                ))}
-                              </Menu.Content>
-                            </Menu.Positioner>
-                          </Portal>
-                        </Menu.Root>
-                      </Box>
-
-                      <IconButton
-                        aria-label='Remove'
-                        onClick={() => removeLanguage('learn', index)}
-                        colorScheme='red'
-                        variant='ghost'
-                        size={{ base: 'sm', sm: 'md' }}
-                      >
-                        <MdDelete />
-                      </IconButton>
-                    </HStack>
-                  ))}
+                          <MdDelete />
+                        </IconButton>
+                      </HStack>
+                    ),
+                  )}
                 </VStack>
               </Box>
 
@@ -1794,19 +1792,6 @@ export default function ProfilePage() {
                 Basic Information
               </Heading>
               <VStack gap={{ base: 3, sm: 4 }} align='stretch'>
-                <Box>
-                  <Text
-                    mb={1}
-                    fontWeight='medium'
-                    fontSize={{ base: 'sm', sm: 'md' }}
-                  >
-                    Name
-                  </Text>
-                  <Text fontSize={{ base: 'md', sm: 'lg' }}>
-                    {profile?.name || 'Not provided'}
-                  </Text>
-                </Box>
-
                 <Box>
                   <Text
                     mb={1}
@@ -2107,7 +2092,7 @@ function FriendsDialog({
             <GridItem key={user.id}>
               <UserCard
                 id={user.id}
-                name={user.name}
+                name={null}
                 email={user.email}
                 username={user.username}
                 avatarUrl={user.avatarUrl}
@@ -2151,7 +2136,7 @@ function FriendsDialog({
                 <Box position='relative'>
                   <UserCard
                     id={user.id}
-                    name={user.name}
+                    name={null}
                     email={user.email}
                     username={user.username}
                     avatarUrl={user.avatarUrl}

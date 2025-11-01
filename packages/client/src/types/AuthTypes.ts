@@ -1,16 +1,19 @@
+// AuthTypes.ts - Authentication related types
+
+import { User } from './UserTypes';
+
 export interface SignupInput {
+  email: string;
+  password: string;
+  name?: string;
+}
+
+export interface LoginInput {
   email: string;
   password: string;
 }
 
-export interface User {
-  id: string;
-  email: string;
-}
-
-export interface AuthState {
-  user: User | null;
-  loading: boolean;
-  error: string | null;
-  initialized: boolean;
+export interface AuthResponse {
+  token: string;
+  user: User;
 }

@@ -11,17 +11,7 @@ import {
 } from '@chakra-ui/react';
 import { MdImage, MdClose } from 'react-icons/md';
 import { uploadImage } from '@/lib/supabaseClient';
-
-interface ImageUploadProps {
-  value?: string;
-  onChange: (url: string) => void;
-  bucket?: string;
-  folder?: string;
-  userId: string;
-  label?: string;
-  accept?: string;
-  maxSizeMB?: number;
-}
+import { ImageUploadProps } from '@/types/AllTypes';
 
 export default function ImageUpload({
   value,

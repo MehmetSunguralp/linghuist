@@ -14,20 +14,7 @@ import { useEffect, useState } from 'react';
 import FlagIcon from './FlagIcon';
 import { languageToCountryCode } from '@/utils/languages';
 import { getSignedUrl } from '@/lib/supabaseClient';
-
-type Language = { name: string; level: string; code: string };
-
-export interface UserCardProps {
-  id: string;
-  name?: string | null;
-  email: string;
-  username?: string | null;
-  avatarUrl?: string | null;
-  country?: string | null; // ISO-3166 alpha-2
-  age?: number | null;
-  languagesKnown?: Language[];
-  languagesLearn?: Language[];
-}
+import { UserCardProps } from '@/types/AllTypes';
 
 const regionNames =
   typeof window !== 'undefined'
@@ -47,7 +34,6 @@ export const UserCard = ({
 }: UserCardProps) => {
   const router = useRouter();
   const [signedAvatarUrl, setSignedAvatarUrl] = useState<string | null>(null);
-  const displayName = name || username || email;
 
   // Convert avatar path to signed URL if it's a path (not a full URL)
   useEffect(() => {
@@ -130,7 +116,7 @@ export const UserCard = ({
         <Box position='relative'>
           <Avatar.Root>
             <Avatar.Image src={signedAvatarUrl || undefined} />
-            <Avatar.Fallback name={displayName} />
+            <Avatar.Fallback name={username || 'Unknown'} />
           </Avatar.Root>
           {countryCode && (
             <Box
@@ -147,7 +133,7 @@ export const UserCard = ({
         </Box>
         <VStack align='start' gap={1} flex={1}>
           <HStack gap={2} align='center'>
-            <Text fontWeight='bold'>{displayName}</Text>
+            <Text fontWeight='bold'>{username}</Text>
             {countryName && (
               <Text color='gray.300' fontSize='sm'>
                 · {countryName}

@@ -38,7 +38,12 @@ export default function Discover() {
 
   if (loading) {
     return (
-      <Box maxW='1200px' mx='auto' px={{ base: 3, sm: 6 }} py={{ base: 4, sm: 6 }}>
+      <Box
+        maxW='1200px'
+        mx='auto'
+        px={{ base: 3, sm: 6 }}
+        py={{ base: 4, sm: 6 }}
+      >
         <Text fontSize={{ base: 'sm', sm: 'md' }}>Loading users...</Text>
       </Box>
     );
@@ -46,8 +51,15 @@ export default function Discover() {
 
   if (error) {
     return (
-      <Box maxW='1200px' mx='auto' px={{ base: 3, sm: 6 }} py={{ base: 4, sm: 6 }}>
-        <Text color='red.500' fontSize={{ base: 'sm', sm: 'md' }}>{error}</Text>
+      <Box
+        maxW='1200px'
+        mx='auto'
+        px={{ base: 3, sm: 6 }}
+        py={{ base: 4, sm: 6 }}
+      >
+        <Text color='red.500' fontSize={{ base: 'sm', sm: 'md' }}>
+          {error}
+        </Text>
       </Box>
     );
   }
@@ -57,11 +69,13 @@ export default function Discover() {
   );
 
   return (
-    <Box maxW='1200px' mx='auto' px={{ base: 3, sm: 6 }} py={{ base: 4, sm: 6 }}>
-      <Heading 
-        size={{ base: 'lg', sm: 'xl' }} 
-        mb={{ base: 3, sm: 4 }}
-      >
+    <Box
+      maxW='1200px'
+      mx='auto'
+      px={{ base: 3, sm: 6 }}
+      py={{ base: 4, sm: 6 }}
+    >
+      <Heading size={{ base: 'lg', sm: 'xl' }} mb={{ base: 3, sm: 4 }}>
         Discover
       </Heading>
       <Grid
@@ -76,7 +90,7 @@ export default function Discover() {
           <GridItem key={u.id}>
             <UserCard
               id={u.id}
-              name={u.name}
+              name={null}
               email={u.email}
               username={u.username}
               avatarUrl={u.avatarUrl}
