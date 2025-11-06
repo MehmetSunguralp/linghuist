@@ -4,14 +4,13 @@ import { Box, Grid, GridItem, Heading, Text } from '@chakra-ui/react';
 import UserCard from '@/components/UserCard';
 import { client } from '@/lib/apolloClient';
 import { GET_USERS } from '@/lib/userQueries';
-import { useSelector } from 'react-redux';
-import { RootState } from '@/store/store';
+import { useAppSelector } from '@/store/hooks';
 
 export default function Discover() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const currentUser = useSelector((state: RootState) => state.auth.user);
+  const currentUser = useAppSelector((state) => state.auth.user);
 
   useEffect(() => {
     let isMounted = true;
@@ -19,7 +18,7 @@ export default function Discover() {
       try {
         const { data } = await client.query<{ users: any[] }>({
           query: GET_USERS,
-          fetchPolicy: 'cache-first',
+          fetchPolicy: 'network-only',
         });
         if (!isMounted) return;
         setUsers(data?.users ?? []);

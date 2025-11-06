@@ -6,7 +6,6 @@ import {
   Stack,
   Spacer,
   Button,
-  Link,
   Icon,
   Menu,
   Portal,
@@ -16,31 +15,52 @@ import {
   HStack,
   Text,
 } from '@chakra-ui/react';
+import Link from 'next/link';
 import { FaCrown } from 'react-icons/fa';
 import { IoChatbubbleEllipsesOutline } from 'react-icons/io5';
 import { BsPeople } from 'react-icons/bs';
 import { AiOutlineCompass } from 'react-icons/ai';
 import { HiMenu, HiX } from 'react-icons/hi';
 import { useRouter } from 'next/navigation';
-import { useSelector, useDispatch } from 'react-redux';
-import { RootState, AppDispatch } from '@/store/store';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { clearAuthUser } from '@/store/reducers/authSlice';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { client } from '@/lib/apolloClient';
 import { GET_CURRENT_USER } from '@/lib/authQueries';
 import { getSignedUrl } from '@/lib/supabaseClient';
 
 export const Header = () => {
   const router = useRouter();
-  const dispatch = useDispatch<AppDispatch>();
-  const user = useSelector((state: RootState) => state.auth.user);
-  const initialized = useSelector((state: RootState) => state.auth.initialized);
+  const dispatch = useAppDispatch();
+  const user = useAppSelector((state) => state.auth.user);
+  const initialized = useAppSelector((state) => state.auth.initialized);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const avatarFetchedRef = useRef(false);
+  const userIdRef = useRef<string | null>(null);
 
-  // Fetch user avatar
+  // Memoize user ID to prevent unnecessary re-fetches
+  const currentUserId = useMemo(() => user?.id ?? null, [user?.id]);
+
+  // Fetch user avatar - only once per user or when user changes
   useEffect(() => {
-    if (user && initialized) {
+    // Skip if already fetched for this user
+    if (avatarFetchedRef.current && userIdRef.current === currentUserId) {
+      return;
+    }
+
+    if (user && initialized && currentUserId) {
+      // Reset flag if user changed
+      if (userIdRef.current !== currentUserId) {
+        avatarFetchedRef.current = false;
+        setAvatarUrl(null);
+      }
+
+      // Skip if we're still on the same user and already fetched
+      if (avatarFetchedRef.current) {
+        return;
+      }
+
       const fetchAvatar = async () => {
         try {
           const { data } = await client.query<{
@@ -67,18 +87,22 @@ export const Header = () => {
               setAvatarUrl(data.me.avatarUrl);
             }
           }
+          avatarFetchedRef.current = true;
+          userIdRef.current = currentUserId;
         } catch (error) {
           // Silently fail - avatar is optional
+          avatarFetchedRef.current = true; // Mark as fetched even on error to prevent retry loops
+          userIdRef.current = currentUserId;
         }
       };
       fetchAvatar();
+    } else if (!user) {
+      // Clear avatar when user logs out
+      setAvatarUrl(null);
+      avatarFetchedRef.current = false;
+      userIdRef.current = null;
     }
-  }, [user, initialized]);
-
-  const handleAuthButtons = (path: string) => {
-    router.push(path);
-    setMobileMenuOpen(false);
-  };
+  }, [user, initialized, currentUserId]);
 
   const handleSignOut = () => {
     // Clear session storage
@@ -87,27 +111,44 @@ export const Header = () => {
     sessionStorage.removeItem('auth_user');
     // Clear Redux state
     dispatch(clearAuthUser());
+    // Reset avatar state
+    setAvatarUrl(null);
+    avatarFetchedRef.current = false;
+    userIdRef.current = null;
     // Redirect to sign in
     router.push('/signin');
     setMobileMenuOpen(false);
   };
 
-  const handleNavClick = (path: string) => {
-    router.push(path);
+  const handleMobileNavClose = () => {
     setMobileMenuOpen(false);
   };
 
-  const navLinks = [
+  const allNavLinks = [
     { href: '/discover', label: 'Discover', icon: AiOutlineCompass },
     { href: '/community', label: 'Community', icon: BsPeople },
     { href: '/chats', label: 'Chats', icon: IoChatbubbleEllipsesOutline },
     { href: '/premium', label: 'Premium', icon: FaCrown, color: 'yellow' },
   ];
 
+  // Only show Discover, Community, and Chats when user is signed in
+  const navLinks = initialized && user
+    ? allNavLinks
+    : [{ href: '/premium', label: 'Premium', icon: FaCrown, color: 'yellow' }];
+
   return (
     <Box px={{ base: 3, sm: 4 }} py={{ base: 2, sm: 3 }} shadow='sm'>
       <Flex maxW='1200px' mx='auto' align='center' gap={{ base: 2, sm: 4 }}>
-        <Link href='/' fontWeight='bold' fontSize={{ base: 'lg', sm: 'xl' }}>
+        <Link
+          href='/'
+          prefetch={true}
+          style={{
+            fontWeight: 'bold',
+            fontSize: 'var(--chakra-font-sizes-xl)',
+            textDecoration: 'none',
+          }}
+          className='chakra-link'
+        >
           Linghuist
         </Link>
 
@@ -122,10 +163,15 @@ export const Header = () => {
             <Link
               key={link.href}
               href={link.href}
-              display='flex'
-              alignItems='center'
-              gap={2}
-              fontSize={{ base: 'sm', md: 'md' }}
+              prefetch={true}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: 'var(--chakra-font-sizes-md)',
+                textDecoration: 'none',
+              }}
+              className='chakra-link'
             >
               {link.label}
               <Icon size='md' color={link.color}>
@@ -190,7 +236,10 @@ export const Header = () => {
                     <Menu.Item
                       cursor={'pointer'}
                       value='profile'
-                      onClick={() => router.push('/profile')}
+                      onClick={() => {
+                        router.push('/profile');
+                        handleMobileNavClose();
+                      }}
                     >
                       Profile
                     </Menu.Item>
@@ -207,19 +256,14 @@ export const Header = () => {
             </Menu.Root>
           ) : (
             <Stack direction='row' gap={4}>
-              <Button
-                variant='subtle'
-                size={{ base: 'sm', md: 'md' }}
-                onClick={() => handleAuthButtons('/signin')}
-              >
-                Sign In
-              </Button>
-              <Button
-                size={{ base: 'sm', md: 'md' }}
-                onClick={() => handleAuthButtons('/signup')}
-              >
-                Sign Up
-              </Button>
+              <Link href='/signin' style={{ textDecoration: 'none' }}>
+                <Button variant='subtle' size={{ base: 'sm', md: 'md' }}>
+                  Sign In
+                </Button>
+              </Link>
+              <Link href='/signup' style={{ textDecoration: 'none' }}>
+                <Button size={{ base: 'sm', md: 'md' }}>Sign Up</Button>
+              </Link>
             </Stack>
           )}
         </Box>
@@ -315,15 +359,18 @@ export const Header = () => {
                 <Link
                   key={link.href}
                   href={link.href}
-                  onClick={() => handleNavClick(link.href)}
-                  display='flex'
-                  alignItems='center'
-                  gap={2}
-                  py={2}
-                  px={2}
-                  borderRadius='md'
-                  _hover={{ bg: 'gray.100', _dark: { bg: 'gray.800' } }}
-                  fontSize='sm'
+                  prefetch={true}
+                  onClick={handleMobileNavClose}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px',
+                    borderRadius: 'var(--chakra-radii-md)',
+                    textDecoration: 'none',
+                    fontSize: 'var(--chakra-font-sizes-sm)',
+                  }}
+                  className='chakra-link'
                 >
                   <Icon size='md' color={link.color}>
                     <link.icon />
@@ -341,21 +388,24 @@ export const Header = () => {
                 />
               ) : !user ? (
                 <VStack gap={2} align='stretch' pt={2}>
-                  <Button
-                    variant='subtle'
-                    size='sm'
-                    width='full'
-                    onClick={() => handleAuthButtons('/signin')}
+                  <Link
+                    href='/signin'
+                    onClick={handleMobileNavClose}
+                    style={{ textDecoration: 'none', width: '100%' }}
                   >
-                    Sign In
-                  </Button>
-                  <Button
-                    size='sm'
-                    width='full'
-                    onClick={() => handleAuthButtons('/signup')}
+                    <Button variant='subtle' size='sm' width='full'>
+                      Sign In
+                    </Button>
+                  </Link>
+                  <Link
+                    href='/signup'
+                    onClick={handleMobileNavClose}
+                    style={{ textDecoration: 'none', width: '100%' }}
                   >
-                    Sign Up
-                  </Button>
+                    <Button size='sm' width='full'>
+                      Sign Up
+                    </Button>
+                  </Link>
                 </VStack>
               ) : null}
             </VStack>

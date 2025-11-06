@@ -11,9 +11,8 @@ import {
 } from '@chakra-ui/react';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
-import { useDispatch, useSelector } from 'react-redux';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { signupUser } from '@/store/reducers/authSlice';
-import { AppDispatch, RootState } from '@/store/store';
 import { toaster } from '@/components/ui/toaster';
 import { MdOutlineEmail } from 'react-icons/md';
 import { useState, useEffect } from 'react';
@@ -21,9 +20,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 export default function SignupPage() {
-  const dispatch = useDispatch<AppDispatch>();
+  const dispatch = useAppDispatch();
   const router = useRouter();
-  const user = useSelector((state: RootState) => state.auth.user);
+  const user = useAppSelector((state) => state.auth.user);
   const [hasSignedUp, setHasSignedUp] = useState<boolean>(false);
 
   // Redirect if already logged in (but allow showing confirmation after signup)

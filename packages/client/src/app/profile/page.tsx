@@ -20,8 +20,7 @@ import {
 } from '@chakra-ui/react';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
-import { useDispatch, useSelector } from 'react-redux';
-import { AppDispatch, RootState } from '@/store/store';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { toaster } from '@/components/ui/toaster';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, useRef } from 'react';
@@ -55,10 +54,10 @@ import imageCompression from 'browser-image-compression';
 import { LanguageInput, UserProfile } from '@/types/AllTypes';
 
 export default function ProfilePage() {
-  const dispatch = useDispatch<AppDispatch>();
+  const dispatch = useAppDispatch();
   const router = useRouter();
   const params = useParams();
-  const user = useSelector((state: RootState) => state.auth.user);
+  const user = useAppSelector((state) => state.auth.user);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [friends, setFriends] = useState<any[]>([]);
@@ -151,16 +150,18 @@ export default function ProfilePage() {
         let profileData: UserProfile | null = null;
 
         if (isOwnProfile) {
+          // Use cache-first: show cached data immediately if available, otherwise fetch
           const { data } = await client.query<{ me: UserProfile }>({
             query: GET_CURRENT_USER,
-            fetchPolicy: 'network-only',
+            fetchPolicy: 'cache-first',
           });
           profileData = data?.me || null;
         } else if (profileUserId) {
+          // Use cache-first: show cached data immediately if available, otherwise fetch
           const { data } = await client.query<{ user: UserProfile }>({
             query: GET_USER_BY_ID,
             variables: { id: profileUserId },
-            fetchPolicy: 'network-only',
+            fetchPolicy: 'cache-first',
           });
           profileData = data?.user || null;
         }

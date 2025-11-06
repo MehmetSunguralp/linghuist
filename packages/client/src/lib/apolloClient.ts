@@ -52,5 +52,66 @@ const httpLink = new HttpLink({
 
 export const client = new ApolloClient({
   link: authLink.concat(httpLink),
-  cache: new InMemoryCache(),
+  cache: new InMemoryCache({
+    typePolicies: {
+      Query: {
+        fields: {
+          // Cache users list
+          users: {
+            merge(existing = [], incoming) {
+              return incoming;
+            },
+          },
+          // Cache friends list
+          friends: {
+            merge(existing = [], incoming) {
+              return incoming;
+            },
+          },
+          // Cache user by ID
+          user: {
+            merge(existing, incoming) {
+              return incoming;
+            },
+          },
+          // Cache current user
+          me: {
+            merge(existing, incoming) {
+              return incoming;
+            },
+          },
+        },
+      },
+      User: {
+        keyFields: ['id'],
+        merge(existing, incoming) {
+          // Properly merge user objects, ensuring language arrays are replaced (not merged)
+          return {
+            ...existing,
+            ...incoming,
+            // Explicitly replace language arrays if they exist in incoming data
+            languagesKnown: incoming.languagesKnown !== undefined 
+              ? incoming.languagesKnown 
+              : existing?.languagesKnown,
+            languagesLearn: incoming.languagesLearn !== undefined 
+              ? incoming.languagesLearn 
+              : existing?.languagesLearn,
+          };
+        },
+      },
+    },
+    // Enable result caching for better performance
+    resultCaching: true,
+  }),
+  // Default fetch policy for all queries
+  defaultOptions: {
+    watchQuery: {
+      fetchPolicy: 'cache-and-network',
+      nextFetchPolicy: 'cache-first',
+    },
+    query: {
+      fetchPolicy: 'cache-first',
+      errorPolicy: 'all',
+    },
+  },
 });

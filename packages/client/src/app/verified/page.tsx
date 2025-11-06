@@ -14,7 +14,7 @@ import {
   Input,
 } from '@chakra-ui/react';
 import { useRouter } from 'next/navigation';
-import { useDispatch } from 'react-redux';
+import { useAppDispatch } from '@/store/hooks';
 import { setAuthUser } from '@/store/reducers/authSlice';
 import { client } from '@/lib/apolloClient';
 import {
@@ -22,14 +22,13 @@ import {
   VERIFY_EMAIL,
   RESEND_VERIFICATION,
 } from '@/lib/authQueries';
-import { AppDispatch } from '@/store/store';
 import { MdOutlineError } from 'react-icons/md';
 import { FaCircleCheck } from 'react-icons/fa6';
 import { toaster } from '@/components/ui/toaster';
 
 export default function VerifiedPage() {
   const router = useRouter();
-  const dispatch = useDispatch<AppDispatch>();
+  const dispatch = useAppDispatch();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>(
     'loading',
   );

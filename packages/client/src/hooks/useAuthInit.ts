@@ -1,15 +1,22 @@
-import { useEffect } from 'react';
-import { useDispatch } from 'react-redux';
-import { AppDispatch } from '@/store/store';
+import { useEffect, useRef } from 'react';
+import { useAppDispatch } from '@/store/hooks';
 import { setAuthInitialized, setAuthUser } from '@/store/reducers/authSlice';
 import { client } from '@/lib/apolloClient';
 import { GET_CURRENT_USER } from '@/lib/authQueries';
 
 export const useAuthInit = () => {
-  const dispatch = useDispatch<AppDispatch>();
+  const dispatch = useAppDispatch();
+  const hasInitialized = useRef(false);
 
   useEffect(() => {
+    // Prevent multiple initializations (e.g., in StrictMode)
+    if (hasInitialized.current) {
+      return;
+    }
+
     const initAuth = async () => {
+      hasInitialized.current = true;
+
       // Hydrate from cached user immediately if present for instant UI
       const cachedUser = sessionStorage.getItem('auth_user');
       if (cachedUser) {
@@ -29,12 +36,13 @@ export const useAuthInit = () => {
 
       if (token) {
         try {
-          // Fetch user data with the stored token
+          // Use cache-first to avoid unnecessary network requests on navigation
+          // We'll still validate the token, but prefer cached data for speed
           const { data } = await client.query<{
             me: { id: string; email: string; name?: string; username?: string };
           }>({
             query: GET_CURRENT_USER,
-            fetchPolicy: 'network-only', // Always fetch fresh data
+            fetchPolicy: 'cache-first', // Prefer cache for faster initialization
           });
 
           if (data?.me) {
@@ -45,6 +53,7 @@ export const useAuthInit = () => {
           console.error('Auth initialization failed:', error);
           sessionStorage.removeItem('access_token');
           sessionStorage.removeItem('refresh_token');
+          sessionStorage.removeItem('auth_user');
         }
       }
 

@@ -12,9 +12,8 @@ import {
 } from '@chakra-ui/react';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
-import { useDispatch, useSelector } from 'react-redux';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { loginUser } from '@/store/reducers/authSlice';
-import { AppDispatch, RootState } from '@/store/store';
 import { toaster } from '@/components/ui/toaster';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -23,9 +22,9 @@ import { client } from '@/lib/apolloClient';
 import { RESET_PASSWORD } from '@/lib/authQueries';
 
 export default function SignInPage() {
-  const dispatch = useDispatch<AppDispatch>();
+  const dispatch = useAppDispatch();
   const router = useRouter();
-  const user = useSelector((state: RootState) => state.auth.user);
+  const user = useAppSelector((state) => state.auth.user);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSubmitting, setForgotSubmitting] = useState(false);
