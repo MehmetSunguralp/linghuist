@@ -14,8 +14,11 @@ import {
 } from '@mui/material';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { LOGIN_MUTATION } from '../api/mutations';
+import { ME_QUERY } from '../api/queries';
 import { useAppDispatch } from '../store/hooks';
 import { setAuth } from '../store/authStore';
+import apolloClient from '../lib/apolloClient';
+import type { User } from '../types';
 
 const validationSchema = Yup.object({
   email: Yup.string()
@@ -36,6 +39,9 @@ const LoginPage = () => {
 
   const handleSubmit = async (values: LoginFormValues) => {
     try {
+      // Clear any cached data before login
+      await apolloClient.clearStore();
+      
       const { data } = await login({
         variables: {
           email: values.email,
@@ -44,7 +50,29 @@ const LoginPage = () => {
       });
 
       if (data?.login) {
-        dispatch(setAuth({ token: data.login }));
+        const token = data.login;
+        dispatch(setAuth({ token }));
+        
+        // Fetch user data after login (with fetchPolicy to bypass cache)
+        try {
+          const { data: userData } = await apolloClient.query({
+            query: ME_QUERY,
+            fetchPolicy: 'network-only', // Always fetch fresh data
+            context: {
+              headers: {
+                authorization: `Bearer ${token}`,
+              },
+            },
+          });
+
+          if (userData?.me) {
+            dispatch(setAuth({ token, user: userData.me as User }));
+          }
+        } catch (userErr) {
+          console.error('Failed to fetch user data:', userErr);
+          // Still proceed with login even if user fetch fails
+        }
+
         navigate('/');
       }
     } catch (err) {
@@ -119,6 +147,11 @@ const LoginPage = () => {
             Don't have an account?{' '}
             <Link component={RouterLink} to="/signup" color="primary">
               Sign up
+            </Link>
+          </Typography>
+          <Typography variant="body2" sx={{ mt: 1 }}>
+            <Link component={RouterLink} to="/reset-password" color="primary">
+              Forgot your password?
             </Link>
           </Typography>
         </Box>

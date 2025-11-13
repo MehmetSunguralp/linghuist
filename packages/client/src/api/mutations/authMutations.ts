@@ -30,3 +30,9 @@ export const RESET_PASSWORD_MUTATION = gql`
   }
 `;
 
+export const VERIFY_EMAIL_MUTATION = gql`
+  mutation VerifyEmail($userId: String!) {
+    verifyEmail(userId: $userId)
+  }
+`;
+

@@ -6,4 +6,5 @@ export * from './NotificationTypes';
 export * from './MessageTypes';
 export * from './ChatTypes';
 export * from './FriendRequestTypes';
+export * from './AuthTypes';
 
