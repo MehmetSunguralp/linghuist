@@ -1,33 +1,17 @@
-// PostTypes.ts - Post, Comment, Like types
-
 import { User } from './UserTypes';
+import { Comment } from './CommentTypes';
+import { Like } from './LikeTypes';
 
 export interface Post {
   id: string;
   authorId: string;
-  author?: Partial<User>;
+  author?: User;
   content: string;
-  imageUrl?: string;
+  imageUrl?: string | null;
   allowComments: boolean;
   likes?: Like[];
   comments?: Comment[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Comment {
-  id: string;
-  postId: string;
-  authorId: string;
-  author?: Partial<User>;
-  content: string;
-  createdAt: string;
-}
-
-export interface Like {
-  id: string;
-  postId: string;
-  userId: string;
-  createdAt: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 

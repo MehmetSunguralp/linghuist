@@ -1,15 +1,18 @@
-// FriendRequestTypes.ts - FriendRequest related types
-
-import { FriendRequestStatus } from './CommonTypes';
 import { User } from './UserTypes';
+
+export enum FriendRequestStatus {
+  PENDING = 'PENDING',
+  ACCEPTED = 'ACCEPTED',
+  REJECTED = 'REJECTED',
+}
 
 export interface FriendRequest {
   id: string;
   senderId: string;
   receiverId: string;
   status: FriendRequestStatus;
-  createdAt: string;
-  sender?: Partial<User>;
-  receiver?: Partial<User>;
+  createdAt: Date;
+  sender?: User;
+  receiver?: User;
 }
 

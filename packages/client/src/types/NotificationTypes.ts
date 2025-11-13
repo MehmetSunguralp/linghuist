@@ -1,23 +1,27 @@
-// NotificationTypes.ts - Notification related types
-
-import { NotificationType } from './CommonTypes';
 import { User } from './UserTypes';
 import { Post } from './PostTypes';
-import { Comment } from './PostTypes';
+import { Comment } from './CommentTypes';
+
+export enum NotificationType {
+  LIKE = 'LIKE',
+  COMMENT = 'COMMENT',
+  FOLLOW = 'FOLLOW',
+  MESSAGE = 'MESSAGE',
+}
 
 export interface Notification {
   id: string;
   type: NotificationType;
   message: string;
   recipientId: string;
+  recipient?: User;
   actorId: string;
-  postId?: string;
-  commentId?: string;
+  actor?: User;
+  postId?: string | null;
+  post?: Post | null;
+  commentId?: string | null;
+  comment?: Comment | null;
   read: boolean;
-  createdAt: string;
-  recipient?: Partial<User>;
-  actor?: Partial<User>;
-  post?: Partial<Post>;
-  comment?: Partial<Comment>;
+  createdAt: Date;
 }
 

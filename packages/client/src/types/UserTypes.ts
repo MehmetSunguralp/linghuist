@@ -1,38 +1,39 @@
-// UserTypes.ts - User related types
+export enum Role {
+  USER = 'USER',
+  ADMIN = 'ADMIN',
+  MODERATOR = 'MODERATOR',
+}
 
-import { Role, Language } from './CommonTypes';
+export interface Language {
+  id: string;
+  name: string;
+  level: string;
+  code: string;
+}
 
 export interface User {
   id: string;
-  username?: string;
-  name?: string;
+  username?: string | null;
+  name?: string | null;
   email: string;
   role: Role;
-  avatarUrl?: string;
-  bio?: string;
-  country?: string;
-  age?: number;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  country?: string | null;
+  age?: number | null;
   languagesKnown?: Language[];
   languagesLearn?: Language[];
   isOnline: boolean;
-  lastOnline?: string;
-  createdAt: string;
-  updatedAt: string;
+  lastOnline?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
   isVerified: boolean;
 }
 
-// Profile-specific types (used in profile pages)
-export interface UserProfile {
+export interface UserLanguage {
   id: string;
-  email: string;
-  name?: string;
-  username?: string;
-  bio?: string;
-  avatarUrl?: string;
-  country?: string | null;
-  age?: number | null;
-  role?: Role;
-  languagesKnown?: Language[];
-  languagesLearn?: Language[];
+  name: string;
+  level: string;
+  code: string;
 }
 
