@@ -1,10 +1,13 @@
-import { User } from './UserTypes';
+import type { User } from './UserTypes';
 
-export enum FriendRequestStatus {
-  PENDING = 'PENDING',
-  ACCEPTED = 'ACCEPTED',
-  REJECTED = 'REJECTED',
-}
+export const FriendRequestStatus = {
+  PENDING: 'PENDING',
+  ACCEPTED: 'ACCEPTED',
+  REJECTED: 'REJECTED',
+} as const;
+
+export type FriendRequestStatus =
+  (typeof FriendRequestStatus)[keyof typeof FriendRequestStatus];
 
 export interface FriendRequest {
   id: string;
@@ -15,4 +18,3 @@ export interface FriendRequest {
   sender?: User;
   receiver?: User;
 }
-

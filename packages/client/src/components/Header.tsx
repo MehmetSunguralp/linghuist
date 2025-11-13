@@ -8,11 +8,11 @@ import {
   Typography,
 } from '@mui/material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { logout, setSignedAvatarUrl } from '../store/authStore';
-import { getSupabaseStorageUrl } from '../utils/supabaseStorage';
-import apolloClient from '../lib/apolloClient';
-import { clearSupabaseClientCache } from '../lib/supabaseClient';
+import { useAppSelector, useAppDispatch } from '@/store/hooks';
+import { logout, setSignedAvatarUrl } from '@/store/authStore';
+import { getSupabaseStorageUrl } from '@/utils/supabaseStorage';
+import apolloClient from '@/lib/apolloClient';
+import { clearSupabaseClientCache } from '@/lib/supabaseClient';
 
 // Signed URLs are valid for 1 hour (3600 seconds)
 const SIGNED_URL_VALIDITY_MS = 3600 * 1000;

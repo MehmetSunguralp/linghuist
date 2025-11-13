@@ -1,4 +1,4 @@
-import { User } from './UserTypes';
+import type { User } from './UserTypes';
 
 export interface Comment {
   id: string;
@@ -8,4 +8,3 @@ export interface Comment {
   content: string;
   createdAt: Date;
 }
-

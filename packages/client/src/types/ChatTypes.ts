@@ -1,5 +1,5 @@
-import { User } from './UserTypes';
-import { Message } from './MessageTypes';
+import type { User } from './UserTypes';
+import type { Message } from './MessageTypes';
 
 export interface ChatParticipant {
   id: string;
@@ -15,4 +15,3 @@ export interface Chat {
   createdAt: Date;
   updatedAt: Date;
 }
-

@@ -13,7 +13,7 @@ import {
   Link,
 } from '@mui/material';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
-import { SIGNUP_MUTATION } from '../api/mutations';
+import { SIGNUP_MUTATION } from '@/api/mutations';
 
 const validationSchema = Yup.object({
   email: Yup.string()

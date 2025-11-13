@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import { useQuery } from '@apollo/client';
-import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { setUser } from '../store/authStore';
-import { ME_QUERY } from '../api/queries';
-import type { User } from '../types';
+import { useAppSelector, useAppDispatch } from '@/store/hooks';
+import { setUser } from '@/store/authStore';
+import { ME_QUERY } from '@/api/queries';
+import type { User } from '@/types';
 
 /**
  * Hook to fetch and sync the current user data

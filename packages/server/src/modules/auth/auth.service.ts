@@ -85,7 +85,7 @@ export class AuthService {
     }
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'http://localhost:3001/reset-password',
+      redirectTo: `${process.env.SITE_URL}/reset-password`,
     });
     if (error) throw new Error(error.message);
     return true;

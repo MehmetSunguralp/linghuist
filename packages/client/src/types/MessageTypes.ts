@@ -1,11 +1,13 @@
-import { User } from './UserTypes';
-import { Chat } from './ChatTypes';
+import type { User } from './UserTypes';
+import type { Chat } from './ChatTypes';
 
-export enum MessageType {
-  TEXT = 'TEXT',
-  IMAGE = 'IMAGE',
-  VOICE = 'VOICE',
-}
+export const MessageType = {
+  TEXT: 'TEXT',
+  IMAGE: 'IMAGE',
+  VOICE: 'VOICE',
+} as const;
+
+export type MessageType = (typeof MessageType)[keyof typeof MessageType];
 
 export interface Message {
   id: string;
@@ -21,4 +23,3 @@ export interface Message {
   chatId: string;
   chat?: Chat;
 }
-

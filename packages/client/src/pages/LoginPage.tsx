@@ -11,14 +11,16 @@ import {
   Alert,
   CircularProgress,
   Link,
+  Snackbar,
 } from '@mui/material';
+import { useState } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
-import { LOGIN_MUTATION } from '../api/mutations';
-import { ME_QUERY } from '../api/queries';
-import { useAppDispatch } from '../store/hooks';
-import { setAuth } from '../store/authStore';
-import apolloClient from '../lib/apolloClient';
-import type { User } from '../types';
+import { LOGIN_MUTATION } from '@/api/mutations';
+import { ME_QUERY } from '@/api/queries';
+import { useAppDispatch } from '@/store/hooks';
+import { setAuth } from '@/store/authStore';
+import apolloClient from '@/lib/apolloClient';
+import type { User } from '@/types';
 
 const validationSchema = Yup.object({
   email: Yup.string()
@@ -36,6 +38,15 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const [login, { loading, error }] = useMutation(LOGIN_MUTATION);
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error' | 'info' | 'warning';
+  }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
 
   const handleSubmit = async (values: LoginFormValues) => {
     try {
@@ -73,10 +84,25 @@ const LoginPage = () => {
           // Still proceed with login even if user fetch fails
         }
 
-        navigate('/');
+        // Show success message
+        setSnackbar({
+          open: true,
+          message: 'Login successful! Redirecting...',
+          severity: 'success',
+        });
+
+        // Navigate after a short delay to show the success message
+        setTimeout(() => {
+          navigate('/');
+        }, 1000);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Login error:', err);
+      setSnackbar({
+        open: true,
+        message: err.message || 'An error occurred during login',
+        severity: 'error',
+      });
     }
   };
 
@@ -87,11 +113,6 @@ const LoginPage = () => {
           Login
         </Typography>
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error.message || 'An error occurred during login'}
-          </Alert>
-        )}
 
         <Formik
           initialValues={{
@@ -156,6 +177,21 @@ const LoginPage = () => {
           </Typography>
         </Box>
       </Paper>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

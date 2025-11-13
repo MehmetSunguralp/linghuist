@@ -1,8 +1,10 @@
-export enum Role {
-  USER = 'USER',
-  ADMIN = 'ADMIN',
-  MODERATOR = 'MODERATOR',
-}
+export const Role = {
+  USER: 'USER',
+  ADMIN: 'ADMIN',
+  MODERATOR: 'MODERATOR',
+} as const;
+
+export type Role = (typeof Role)[keyof typeof Role];
 
 export interface Language {
   id: string;
@@ -31,9 +33,7 @@ export interface User {
 }
 
 export interface UserLanguage {
-  id: string;
   name: string;
   level: string;
   code: string;
 }
-

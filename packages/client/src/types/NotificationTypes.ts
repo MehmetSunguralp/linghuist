@@ -1,13 +1,16 @@
-import { User } from './UserTypes';
-import { Post } from './PostTypes';
-import { Comment } from './CommentTypes';
+import type { User } from './UserTypes';
+import type { Post } from './PostTypes';
+import type { Comment } from './CommentTypes';
 
-export enum NotificationType {
-  LIKE = 'LIKE',
-  COMMENT = 'COMMENT',
-  FOLLOW = 'FOLLOW',
-  MESSAGE = 'MESSAGE',
-}
+export const NotificationType = {
+  LIKE: 'LIKE',
+  COMMENT: 'COMMENT',
+  FOLLOW: 'FOLLOW',
+  MESSAGE: 'MESSAGE',
+} as const;
+
+export type NotificationType =
+  (typeof NotificationType)[keyof typeof NotificationType];
 
 export interface Notification {
   id: string;
@@ -24,4 +27,3 @@ export interface Notification {
   read: boolean;
   createdAt: Date;
 }
-

@@ -14,7 +14,7 @@ import {
   Link,
 } from '@mui/material';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
-import { RESET_PASSWORD_MUTATION } from '../api/mutations';
+import { RESET_PASSWORD_MUTATION } from '@/api/mutations';
 
 const validationSchema = Yup.object({
   email: Yup.string()

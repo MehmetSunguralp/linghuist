@@ -12,7 +12,7 @@ import {
   Link,
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
-import { VERIFY_EMAIL_MUTATION } from '../api/mutations';
+import { VERIFY_EMAIL_MUTATION } from '@/api/mutations';
 
 const VerifyEmailPage = () => {
   const [searchParams] = useSearchParams();

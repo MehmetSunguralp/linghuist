@@ -1,5 +1,5 @@
-import { User } from './UserTypes';
-import { Post } from './PostTypes';
+import type { User } from './UserTypes';
+import type { Post } from './PostTypes';
 
 export interface Like {
   id: string;
@@ -9,4 +9,3 @@ export interface Like {
   user?: User;
   createdAt: Date;
 }
-

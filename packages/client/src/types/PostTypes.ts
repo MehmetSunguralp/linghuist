@@ -1,6 +1,6 @@
-import { User } from './UserTypes';
-import { Comment } from './CommentTypes';
-import { Like } from './LikeTypes';
+import type { User } from './UserTypes';
+import type { Comment } from './CommentTypes';
+import type { Like } from './LikeTypes';
 
 export interface Post {
   id: string;
@@ -14,4 +14,3 @@ export interface Post {
   createdAt: Date;
   updatedAt: Date;
 }
-
