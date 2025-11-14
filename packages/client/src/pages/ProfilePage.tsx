@@ -1795,11 +1795,15 @@ const FriendsSection = ({
       if (!accessToken) return;
 
       const avatarPromises = friends.map(async (friend) => {
-        if (!friend.avatarUrl) return null;
+        // Prefer thumbnail if available, fallback to full avatar
+        const imagePath = friend.userThumbnailUrl || friend.avatarUrl;
+        if (!imagePath) return null;
+
         try {
+          const bucket = friend.userThumbnailUrl ? 'userThumbnails' : 'avatars';
           const url = await getSupabaseStorageUrl(
-            friend.avatarUrl,
-            'avatars',
+            imagePath,
+            bucket,
             accessToken,
           );
           return { id: friend.id, url: url || '' };

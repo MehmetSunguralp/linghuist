@@ -42,13 +42,19 @@ const authSlice = createSlice({
     setUser: (state, action: PayloadAction<User>) => {
       const previousUserId = state.user?.id;
       const previousAvatarUrl = state.user?.avatarUrl;
+      const previousThumbnailUrl = state.user?.userThumbnailUrl;
       const newUserId = action.payload.id;
       const newAvatarUrl = action.payload.avatarUrl;
+      const newThumbnailUrl = action.payload.userThumbnailUrl;
       
       state.user = action.payload;
       
-      // Clear cached avatar URL if user changed (different user) or avatar URL changed
-      if (previousUserId !== newUserId || previousAvatarUrl !== newAvatarUrl) {
+      // Clear cached avatar URL if user changed (different user) or avatar/thumbnail URL changed
+      if (
+        previousUserId !== newUserId ||
+        previousAvatarUrl !== newAvatarUrl ||
+        previousThumbnailUrl !== newThumbnailUrl
+      ) {
         state.signedAvatarUrl = null;
         state.signedAvatarUrlExpiry = null;
       }

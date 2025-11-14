@@ -8,6 +8,7 @@ export const ME_QUERY = gql`
       username
       name
       avatarUrl
+      userThumbnailUrl
       bio
       role
       isVerified
@@ -35,6 +36,7 @@ export const USER_QUERY = gql`
       username
       name
       avatarUrl
+      userThumbnailUrl
       bio
       role
       isVerified
@@ -62,6 +64,7 @@ export const FRIENDS_QUERY = gql`
       username
       name
       avatarUrl
+      userThumbnailUrl
       bio
       country
       age

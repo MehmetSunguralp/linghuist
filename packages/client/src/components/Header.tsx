@@ -49,7 +49,9 @@ const Header = () => {
 
   useEffect(() => {
     const fetchAvatarUrl = async () => {
-      if (!user?.avatarUrl || !accessToken) {
+      // Prefer thumbnail for header (smaller, faster)
+      const imagePath = user?.userThumbnailUrl || user?.avatarUrl;
+      if (!imagePath || !accessToken) {
         // Clear avatar if no user or token
         if (signedAvatarUrl) {
           dispatch(clearSignedAvatarUrl());
@@ -70,11 +72,8 @@ const Header = () => {
 
       // Fetch new signed URL
       try {
-        const url = await getSupabaseStorageUrl(
-          user.avatarUrl,
-          'avatars',
-          accessToken,
-        );
+        const bucket = user?.userThumbnailUrl ? 'userThumbnails' : 'avatars';
+        const url = await getSupabaseStorageUrl(imagePath, bucket, accessToken);
 
         if (url) {
           // Cache the signed URL with expiry time (1 hour from now)
@@ -98,7 +97,7 @@ const Header = () => {
     fetchAvatarUrl();
     // Only depend on user avatar URL and access token, not the cached values
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.avatarUrl, user?.id, accessToken]);
+  }, [user?.avatarUrl, user?.userThumbnailUrl, user?.id, accessToken]);
 
   // Reset loaded state when avatar URL changes
   useEffect(() => {

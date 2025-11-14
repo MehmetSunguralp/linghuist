@@ -20,6 +20,7 @@ export interface User {
   email: string;
   role: Role;
   avatarUrl?: string | null;
+  userThumbnailUrl?: string | null;
   bio?: string | null;
   country?: string | null;
   age?: number | null;

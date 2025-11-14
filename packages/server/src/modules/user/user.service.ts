@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { prisma } from 'src/lib/prismaClient';
 import { FriendRequestStatus } from './dto/friend_request.model';
+import {
+  generateAndUploadThumbnail,
+  deleteThumbnail,
+} from '../../lib/thumbnailService';
 
 @Injectable()
 export class UserService {
@@ -39,15 +43,39 @@ export class UserService {
       username?: string;
       bio?: string;
       avatarUrl?: string;
+      userThumbnailUrl?: string;
       languagesKnown?: { name: string; level: string; code: string }[];
       languagesLearn?: { name: string; level: string; code: string }[];
     },
   ) {
+    // Get current user to check for existing avatar/thumbnail
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { avatarUrl: true, userThumbnailUrl: true },
+    });
+
+    // If avatarUrl is being updated, generate new thumbnail
+    let thumbnailUrl: string | null = data.userThumbnailUrl || null;
+    if (data.avatarUrl && data.avatarUrl !== currentUser?.avatarUrl) {
+      // Delete old thumbnail if exists
+      if (currentUser?.userThumbnailUrl) {
+        await deleteThumbnail(currentUser.userThumbnailUrl);
+      }
+
+      // Generate and upload new thumbnail
+      thumbnailUrl = await generateAndUploadThumbnail(data.avatarUrl, userId);
+    } else if (data.avatarUrl === null && currentUser?.userThumbnailUrl) {
+      // If avatar is being removed, delete thumbnail too
+      await deleteThumbnail(currentUser.userThumbnailUrl);
+      thumbnailUrl = null;
+    }
+
     const updateData: any = {
       //TODO: Fix any type
       username: data.username,
       bio: data.bio,
       avatarUrl: data.avatarUrl,
+      userThumbnailUrl: thumbnailUrl,
       name: data.name,
       country: (data as any).country,
       age: (data as any).age,
