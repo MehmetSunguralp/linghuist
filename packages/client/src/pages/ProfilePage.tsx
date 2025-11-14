@@ -45,6 +45,7 @@ import {
   Translate as TranslateIcon,
   ReportGmailerrorred as ReportGmailerrorredIcon,
 } from '@mui/icons-material';
+import KeyIcon from '@mui/icons-material/Key';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { setUser, logout } from '@/store/authStore';
 import {
@@ -123,6 +124,7 @@ const ProfilePage = () => {
 
   const [avatarUrlSigned, setAvatarUrlSigned] = useState<string>('');
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [profileAvatarLoaded, setProfileAvatarLoaded] = useState(false);
   const [friendsDialogOpen, setFriendsDialogOpen] = useState(false);
   const [friendsTabValue, setFriendsTabValue] = useState(0);
   const [snackbar, setSnackbar] = useState<{
@@ -146,6 +148,7 @@ const ProfilePage = () => {
   const {
     data: meData,
     loading: meLoading,
+    error: meError,
     refetch: refetchMe,
   } = useQuery(ME_QUERY, {
     skip: !isOwnProfile || !currentUser,
@@ -155,6 +158,7 @@ const ProfilePage = () => {
   const {
     data: userData,
     loading: userLoading,
+    error: userError,
     refetch: refetchUser,
   } = useQuery(USER_QUERY, {
     variables: { id: profileUserId! },
@@ -193,6 +197,7 @@ const ProfilePage = () => {
 
   const profile = isOwnProfile ? meData?.me : userData?.user;
   const loading = isOwnProfile ? meLoading : userLoading;
+  const error = isOwnProfile ? meError : userError;
 
   // Check friend status
   const friends = friendsData?.friends || [];
@@ -214,12 +219,16 @@ const ProfilePage = () => {
           );
           // Only set URL if it's valid (empty string means file not found)
           setAvatarUrlSigned(url || '');
+          // Reset loaded state when URL changes
+          setProfileAvatarLoaded(false);
         } catch (error) {
           console.error('Failed to get avatar URL:', error);
           setAvatarUrlSigned('');
+          setProfileAvatarLoaded(false);
         }
       } else {
         setAvatarUrlSigned('');
+        setProfileAvatarLoaded(false);
       }
     };
 
@@ -228,8 +237,14 @@ const ProfilePage = () => {
     } else {
       // Clear avatar if no profile
       setAvatarUrlSigned('');
+      setProfileAvatarLoaded(false);
     }
   }, [profile?.avatarUrl, profile?.id, accessToken]);
+
+  // Reset loaded state when avatar URL changes
+  useEffect(() => {
+    setProfileAvatarLoaded(false);
+  }, [avatarUrlSigned]);
 
   const showSnackbar = (
     message: string,
@@ -407,21 +422,51 @@ const ProfilePage = () => {
     }
   };
 
-  if (loading) {
+  // Show loading spinner while loading or when profile is not yet available
+  if (loading || (!profile && !error)) {
     return (
       <Container
         maxWidth="lg"
-        sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}
+        sx={{
+          mt: 4,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '60vh',
+        }}
       >
-        <CircularProgress />
+        <CircularProgress size={60} />
       </Container>
     );
   }
 
-  if (!profile) {
+  // Show error message if query failed or profile not found after loading
+  if (error || !profile) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4 }}>
-        <Alert severity="error">Profile not found</Alert>
+      <Container
+        maxWidth="lg"
+        sx={{
+          mt: 4,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '60vh',
+        }}
+      >
+        <Box sx={{ textAlign: 'center' }}>
+          <Typography
+            variant="h1"
+            component="div"
+            sx={{ fontSize: '6rem', lineHeight: 1, mb: 2 }}
+          >
+            .
+          </Typography>
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {error
+              ? error.message || 'Failed to load profile'
+              : 'Profile not found'}
+          </Alert>
+        </Box>
       </Container>
     );
   }
@@ -434,6 +479,8 @@ const ProfilePage = () => {
         avatarUrlSigned={avatarUrlSigned}
         uploadingAvatar={uploadingAvatar}
         avatarMenuAnchor={avatarMenuAnchor}
+        profileAvatarLoaded={profileAvatarLoaded}
+        onAvatarLoad={() => setProfileAvatarLoaded(true)}
         onAvatarClick={handleAvatarClick}
         onAvatarMenuClose={handleAvatarMenuClose}
         onFileSelect={handleFileSelect}
@@ -633,6 +680,8 @@ interface ProfileHeaderProps {
   avatarUrlSigned: string;
   uploadingAvatar: boolean;
   avatarMenuAnchor: HTMLElement | null;
+  profileAvatarLoaded: boolean;
+  onAvatarLoad: () => void;
   onAvatarClick: (event: React.MouseEvent<HTMLElement>) => void;
   onAvatarMenuClose: () => void;
   onFileSelect: (file: File) => void;
@@ -650,6 +699,8 @@ const ProfileHeader = ({
   avatarUrlSigned,
   uploadingAvatar,
   avatarMenuAnchor,
+  profileAvatarLoaded,
+  onAvatarLoad,
   onAvatarClick,
   onAvatarMenuClose,
   onFileSelect,
@@ -683,6 +734,11 @@ const ProfileHeader = ({
                 width: '100%',
                 height: '100%',
                 fontSize: { xs: '3rem', sm: '4rem', md: '5rem' },
+                opacity: !profileAvatarLoaded ? 0 : 1,
+                transition: 'opacity 0.3s ease-in-out',
+              }}
+              imgProps={{
+                onLoad: onAvatarLoad,
               }}
             />
           ) : (
@@ -1264,30 +1320,68 @@ const ProfileEditForm = ({
             allowNative={false}
           />
 
-          {/* Danger Zone Section */}
-          <Paper
-            sx={{
-              p: 4,
-              mb: 4,
-              border: '2px solid',
-              borderColor: 'error.main',
-            }}
-          >
+          {/* Password Reset Section */}
+          <Paper sx={{ p: 4, mb: 4 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-              <ReportGmailerrorredIcon sx={{ color: 'error.main' }} />
-              <Typography
-                variant="h5"
-                sx={{ color: 'error.main', fontWeight: 'bold' }}
-              >
-                Danger Zone
-              </Typography>
+              <KeyIcon color="primary" />
+              <Typography variant="h5">Password Reset</Typography>
             </Box>
-
             <Box
-              sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}
+              sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}
             >
-              {/* Delete Account */}
-              {profile.role !== 'ADMIN' && profile.role !== 'MODERATOR' && (
+              <Typography variant="body2" color="text.secondary">
+                Click the button below to receive a password reset email.
+              </Typography>
+              <Button
+                variant="outlined"
+                color="primary"
+                onClick={async () => {
+                  try {
+                    await resetPasswordMutation({
+                      variables: {
+                        email: profile.email,
+                      },
+                    });
+
+                    if (onSuccess) {
+                      onSuccess('Password reset email sent.');
+                    }
+                  } catch (error: any) {
+                    onError(
+                      error.message || 'Failed to send password reset email',
+                    );
+                  }
+                }}
+              >
+                Send Password Reset Email
+              </Button>
+            </Box>
+          </Paper>
+
+          {/* Danger Zone Section */}
+          {profile.role !== 'ADMIN' && profile.role !== 'MODERATOR' && (
+            <Paper
+              sx={{
+                p: 4,
+                mb: 4,
+                border: '2px solid',
+                borderColor: 'error.main',
+              }}
+            >
+              <Box
+                sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}
+              >
+                <ReportGmailerrorredIcon sx={{ color: 'error.main' }} />
+                <Typography
+                  variant="h5"
+                  sx={{ color: 'error.main', fontWeight: 'bold' }}
+                >
+                  Danger Zone
+                </Typography>
+              </Box>
+              <Box
+                sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}
+              >
                 <Box
                   sx={{
                     display: 'flex',
@@ -1321,9 +1415,9 @@ const ProfileEditForm = ({
                     Delete Account
                   </Button>
                 </Box>
-              )}
-            </Box>
-          </Paper>
+              </Box>
+            </Paper>
+          )}
 
           {/* Save Changes Button - Full Width */}
           <Box sx={{ mb: 4 }}>
@@ -1692,6 +1786,9 @@ const FriendsSection = ({
   const [friendAvatars, setFriendAvatars] = useState<Record<string, string>>(
     {},
   );
+  const [loadedFriendAvatars, setLoadedFriendAvatars] = useState<
+    Record<string, boolean>
+  >({});
 
   useEffect(() => {
     const fetchFriendAvatars = async () => {
@@ -1720,6 +1817,8 @@ const FriendsSection = ({
         }
       });
       setFriendAvatars(avatarMap);
+      // Reset loaded states when avatars change
+      setLoadedFriendAvatars({});
     };
 
     if (friends.length > 0) {
@@ -1779,6 +1878,22 @@ const FriendsSection = ({
                         mx: 'auto',
                         mb: 1,
                         bgcolor: 'primary.main',
+                        opacity:
+                          friendAvatars[friend.id] &&
+                          !loadedFriendAvatars[friend.id]
+                            ? 0
+                            : 1,
+                        transition: 'opacity 0.3s ease-in-out',
+                      }}
+                      imgProps={{
+                        onLoad: () => {
+                          if (friendAvatars[friend.id]) {
+                            setLoadedFriendAvatars((prev) => ({
+                              ...prev,
+                              [friend.id]: true,
+                            }));
+                          }
+                        },
                       }}
                     >
                       {(friend.username || friend.email || 'U')

@@ -45,6 +45,7 @@ const Header = () => {
   const [avatarMenuAnchor, setAvatarMenuAnchor] = useState<null | HTMLElement>(
     null,
   );
+  const [avatarLoaded, setAvatarLoaded] = useState(false);
 
   useEffect(() => {
     const fetchAvatarUrl = async () => {
@@ -79,14 +80,18 @@ const Header = () => {
           // Cache the signed URL with expiry time (1 hour from now)
           const expiryTime = now + SIGNED_URL_VALIDITY_MS;
           dispatch(setSignedAvatarUrl({ url, expiryTime }));
+          // Reset loaded state when URL changes
+          setAvatarLoaded(false);
         } else {
           // Clear avatar if fetch failed (file might not exist)
           dispatch(clearSignedAvatarUrl());
+          setAvatarLoaded(false);
         }
       } catch (error) {
         console.error('Failed to get avatar URL:', error);
         // Clear avatar on error (file might not exist or be inaccessible)
         dispatch(clearSignedAvatarUrl());
+        setAvatarLoaded(false);
       }
     };
 
@@ -94,6 +99,11 @@ const Header = () => {
     // Only depend on user avatar URL and access token, not the cached values
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.avatarUrl, user?.id, accessToken]);
+
+  // Reset loaded state when avatar URL changes
+  useEffect(() => {
+    setAvatarLoaded(false);
+  }, [signedAvatarUrl]);
 
   const handleAvatarClick = (event: React.MouseEvent<HTMLElement>) => {
     setAvatarMenuAnchor(event.currentTarget);
@@ -136,7 +146,18 @@ const Header = () => {
               <Avatar
                 alt={user?.username || user?.email || 'User'}
                 src={signedAvatarUrl || '/static/images/avatar/1.jpg'}
-                sx={{ cursor: 'pointer' }}
+                sx={{
+                  cursor: 'pointer',
+                  opacity: signedAvatarUrl && !avatarLoaded ? 0 : 1,
+                  transition: 'opacity 0.3s ease-in-out',
+                }}
+                imgProps={{
+                  onLoad: () => {
+                    if (signedAvatarUrl) {
+                      setAvatarLoaded(true);
+                    }
+                  },
+                }}
                 onClick={handleAvatarClick}
               />
               <Menu
