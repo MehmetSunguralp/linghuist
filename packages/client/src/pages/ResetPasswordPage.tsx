@@ -76,23 +76,29 @@ const ResetPasswordPage = () => {
   // Check if we have a recovery token in the URL (from email link)
   useEffect(() => {
     const checkRecoverySession = async () => {
-      // If user is authenticated but has no recovery token, redirect to home
       const hasHash =
         window.location.hash && window.location.hash.includes('access_token');
 
+      // Only redirect if user is authenticated but has no recovery token
+      // (authenticated users shouldn't be on this page unless resetting password)
       if (isAuthenticated && !hasHash) {
         // User is logged in but no recovery token - redirect to home
         navigate('/');
         return;
       }
 
+      // If user is not authenticated and has no hash, they're just requesting a reset
+      // Let them stay on the page - don't redirect
+      if (!isAuthenticated && !hasHash) {
+        setIsLoadingSession(false);
+        return;
+      }
+
       const supabase = getSupabaseAuthClient();
       if (!supabase) {
         setIsLoadingSession(false);
-        // If no Supabase client and user is not authenticated, redirect to home
-        if (!isAuthenticated && !hasHash) {
-          navigate('/');
-        }
+        // If no Supabase client but user has hash, they might have a recovery token
+        // Let them stay on the page to see the error
         return;
       }
 
@@ -121,15 +127,12 @@ const ResetPasswordPage = () => {
             setUserEmail(session.user.email || '');
             setIsSettingPassword(true);
           }
-        } else if (!isAuthenticated && !hasHash) {
-          // No recovery token and not authenticated - redirect to home
-          navigate('/');
         }
+        // If no session but user has hash, they might have an invalid/expired token
+        // Let them stay on the page to see the error or request a new reset
       } catch (err) {
         console.error('Error checking session:', err);
-        if (!isAuthenticated && !hasHash) {
-          navigate('/');
-        }
+        // Don't redirect on error - let user stay on page
       } finally {
         setIsLoadingSession(false);
       }
@@ -177,8 +180,29 @@ const ResetPasswordPage = () => {
           navigate('/login');
         }, 1500);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Reset password error:', err);
+      // Check if error is about user not found
+      const errorMessage =
+        err.message || err.graphQLErrors?.[0]?.message || 'An error occurred';
+      const isUserNotFound =
+        errorMessage.toLowerCase().includes('no account found') ||
+        errorMessage.toLowerCase().includes('user with this email') ||
+        errorMessage.toLowerCase().includes('not found');
+
+      if (isUserNotFound) {
+        setSnackbar({
+          open: true,
+          message: 'User with this email not found.',
+          severity: 'error',
+        });
+      } else {
+        setSnackbar({
+          open: true,
+          message: errorMessage,
+          severity: 'error',
+        });
+      }
     }
   };
 
@@ -402,12 +426,6 @@ const ResetPasswordPage = () => {
           password.
         </Typography>
 
-        {requestError && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {requestError.message || 'An error occurred'}
-          </Alert>
-        )}
-
         <Formik
           initialValues={{
             email: initialEmail,
@@ -463,7 +481,7 @@ const ResetPasswordPage = () => {
         open={snackbar.open}
         autoHideDuration={6000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
         <Alert
           onClose={() => setSnackbar({ ...snackbar, open: false })}

@@ -169,10 +169,10 @@ const Header = () => {
             </>
           ) : (
             <>
-              <Button color="inherit" component={RouterLink} to="/login">
+              <Button color="inherit" onClick={() => navigate('/login')}>
                 Login
               </Button>
-              <Button color="inherit" component={RouterLink} to="/signup">
+              <Button variant="contained" onClick={() => navigate('/signup')}>
                 Sign Up
               </Button>
             </>
