@@ -4,7 +4,7 @@ const theme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: '#646cff',
+      main: '#8434ad',
       light: '#747bff',
       dark: '#535bf2',
     },
@@ -21,7 +21,7 @@ const theme = createTheme({
     },
   },
   typography: {
-    fontFamily: 'system-ui, Avenir, Helvetica, Arial, sans-serif',
+    fontFamily: '"Inter", "Helvetica", "Arial", sans-serif',
   },
   components: {
     MuiButton: {
@@ -29,6 +29,9 @@ const theme = createTheme({
         root: {
           textTransform: 'none',
           borderRadius: '8px',
+          '&:hover': {
+            backgroundColor: '#a844db',
+          },
         },
       },
     },
@@ -45,4 +48,3 @@ const theme = createTheme({
 });
 
 export default theme;
-

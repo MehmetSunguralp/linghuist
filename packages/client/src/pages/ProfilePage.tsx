@@ -554,8 +554,7 @@ const ProfilePage = () => {
         fullWidth
         PaperProps={{
           sx: {
-            bgcolor: 'background.paper',
-            maxWidth: '90vw',
+            maxWidth: 'fit-content',
           },
         }}
       >
