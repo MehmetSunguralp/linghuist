@@ -71,6 +71,9 @@ import {
 import type { User, Language } from '@/types';
 import FlagIcon from '@/components/FlagIcon';
 import imageCompression from 'browser-image-compression';
+import { Cropper } from 'react-advanced-cropper';
+import type { CropperRef } from 'react-advanced-cropper';
+import 'react-advanced-cropper/dist/style.css';
 
 interface LanguageInput {
   name: string;
@@ -127,6 +130,9 @@ const ProfilePage = () => {
   const [avatarMenuAnchor, setAvatarMenuAnchor] = useState<null | HTMLElement>(
     null,
   );
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const cropperRef = useRef<CropperRef>(null);
 
   // Queries
   const {
@@ -230,16 +236,76 @@ const ProfilePage = () => {
     setAvatarMenuAnchor(null);
   };
 
+  const handleFileSelect = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      showSnackbar('Please select an image file', 'error');
+      return;
+    }
+
+    // Create object URL for the cropper
+    const imageUrl = URL.createObjectURL(file);
+    setSelectedImage(imageUrl);
+    setCropperOpen(true);
+  };
+
+  const handleCropCancel = () => {
+    setCropperOpen(false);
+    if (selectedImage) {
+      URL.revokeObjectURL(selectedImage);
+      setSelectedImage(null);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleCropConfirm = async () => {
+    if (!cropperRef.current || !currentUser || !accessToken || !selectedImage) {
+      return;
+    }
+
+    try {
+      // Get cropped canvas
+      const canvas = cropperRef.current.getCanvas();
+      if (!canvas) {
+        showSnackbar('Failed to crop image', 'error');
+        return;
+      }
+
+      // Convert canvas to blob
+      canvas.toBlob(
+        async (blob) => {
+          if (!blob) {
+            showSnackbar('Failed to process cropped image', 'error');
+            return;
+          }
+
+          // Convert blob to File
+          const croppedFile = new File([blob], 'avatar.jpg', {
+            type: 'image/jpeg',
+          });
+
+          // Close cropper
+          setCropperOpen(false);
+          URL.revokeObjectURL(selectedImage);
+          setSelectedImage(null);
+
+          // Upload the cropped image
+          await handleAvatarUpload(croppedFile);
+        },
+        'image/jpeg',
+        0.9,
+      );
+    } catch (error: any) {
+      showSnackbar(error.message || 'Failed to crop image', 'error');
+    }
+  };
+
   const handleAvatarUpload = async (file: File) => {
     if (!currentUser || !accessToken) return;
 
     setUploadingAvatar(true);
     try {
-      if (!file.type.startsWith('image/')) {
-        showSnackbar('Please select an image file', 'error');
-        return;
-      }
-
       // Compress image
       const options = {
         maxSizeMB: 0.5,
@@ -358,7 +424,7 @@ const ProfilePage = () => {
         avatarMenuAnchor={avatarMenuAnchor}
         onAvatarClick={handleAvatarClick}
         onAvatarMenuClose={handleAvatarMenuClose}
-        onAvatarUpload={handleAvatarUpload}
+        onFileSelect={handleFileSelect}
         fileInputRef={fileInputRef}
         isFriend={isFriend}
         hasPendingRequest={hasPendingRequest}
@@ -410,6 +476,88 @@ const ProfilePage = () => {
         }}
       />
 
+      {/* Avatar Cropper Dialog */}
+      <Dialog
+        open={cropperOpen}
+        onClose={handleCropCancel}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: 'background.paper',
+          },
+        }}
+      >
+        <DialogTitle>Crop Avatar Image</DialogTitle>
+        <DialogContent
+          sx={{
+            overflow: 'hidden',
+            p: 2,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          {selectedImage && (
+            <Box
+              sx={{
+                width: '100%',
+                maxWidth: '100%',
+                maxHeight: '70vh',
+                minHeight: '400px',
+                height: '70vh',
+                position: 'relative',
+                overflow: 'hidden',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                '& .react-advanced-cropper': {
+                  height: '100%',
+                  width: '100%',
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                },
+                '& .react-advanced-cropper__area': {
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                },
+                '& .react-advanced-cropper__image': {
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  width: 'auto',
+                  height: 'auto',
+                  objectFit: 'contain',
+                },
+              }}
+            >
+              <Cropper
+                ref={cropperRef}
+                src={selectedImage}
+                stencilProps={{
+                  aspectRatio: 1, // Square ratio
+                  movable: true,
+                  resizable: true,
+                }}
+                className="cropper"
+              />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCropCancel} color="inherit">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCropConfirm}
+            variant="contained"
+            color="primary"
+            disabled={uploadingAvatar}
+          >
+            {uploadingAvatar ? 'Uploading...' : 'Crop & Upload'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Snackbar
         open={snackbar.open}
         autoHideDuration={6000}
@@ -438,7 +586,7 @@ interface ProfileHeaderProps {
   avatarMenuAnchor: HTMLElement | null;
   onAvatarClick: (event: React.MouseEvent<HTMLElement>) => void;
   onAvatarMenuClose: () => void;
-  onAvatarUpload: (file: File) => void;
+  onFileSelect: (file: File) => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   isFriend: boolean;
   hasPendingRequest: boolean;
@@ -455,7 +603,7 @@ const ProfileHeader = ({
   avatarMenuAnchor,
   onAvatarClick,
   onAvatarMenuClose,
-  onAvatarUpload,
+  onFileSelect,
   fileInputRef,
   isFriend,
   hasPendingRequest,
@@ -539,7 +687,7 @@ const ProfileHeader = ({
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) {
-            onAvatarUpload(file);
+            onFileSelect(file);
           }
         }}
       />
