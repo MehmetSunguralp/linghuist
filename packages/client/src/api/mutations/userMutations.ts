@@ -14,13 +14,11 @@ export const UPDATE_ME_MUTATION = gql`
       country
       age
       languagesKnown {
-        id
         name
         level
         code
       }
       languagesLearn {
-        id
         name
         level
         code
@@ -72,4 +70,3 @@ export const REMOVE_FRIEND_MUTATION = gql`
     removeFriend(friendId: $friendId)
   }
 `;
-

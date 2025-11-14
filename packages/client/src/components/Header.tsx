@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -6,7 +6,15 @@ import {
   Avatar,
   Box,
   Typography,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  Divider,
 } from '@mui/material';
+import {
+  Person as PersonIcon,
+  Logout as LogoutIcon,
+} from '@mui/icons-material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { logout, setSignedAvatarUrl } from '@/store/authStore';
@@ -27,6 +35,9 @@ const Header = () => {
     signedAvatarUrl,
     signedAvatarUrlExpiry,
   } = useAppSelector((state) => state.auth);
+  const [avatarMenuAnchor, setAvatarMenuAnchor] = useState<null | HTMLElement>(
+    null,
+  );
 
   useEffect(() => {
     const fetchAvatarUrl = async () => {
@@ -68,7 +79,16 @@ const Header = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.avatarUrl, accessToken]);
 
+  const handleAvatarClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAvatarMenuAnchor(event.currentTarget);
+  };
+
+  const handleAvatarMenuClose = () => {
+    setAvatarMenuAnchor(null);
+  };
+
   const handleLogout = async () => {
+    handleAvatarMenuClose();
     // Clear Apollo Client cache
     await apolloClient.clearStore();
     // Clear Supabase client cache
@@ -77,6 +97,11 @@ const Header = () => {
     dispatch(logout());
     // Navigate to login
     navigate('/login');
+  };
+
+  const handleProfileClick = () => {
+    handleAvatarMenuClose();
+    navigate('/profile');
   };
 
   return (
@@ -95,11 +120,35 @@ const Header = () => {
                 alt={user?.username || user?.email || 'User'}
                 src={signedAvatarUrl || '/static/images/avatar/1.jpg'}
                 sx={{ cursor: 'pointer' }}
-                onClick={() => navigate('/profile')}
+                onClick={handleAvatarClick}
               />
-              <Button color="inherit" onClick={handleLogout}>
-                Logout
-              </Button>
+              <Menu
+                anchorEl={avatarMenuAnchor}
+                open={Boolean(avatarMenuAnchor)}
+                onClose={handleAvatarMenuClose}
+                anchorOrigin={{
+                  vertical: 'bottom',
+                  horizontal: 'right',
+                }}
+                transformOrigin={{
+                  vertical: 'top',
+                  horizontal: 'right',
+                }}
+              >
+                <MenuItem onClick={handleProfileClick}>
+                  <ListItemIcon>
+                    <PersonIcon fontSize="small" />
+                  </ListItemIcon>
+                  Profile
+                </MenuItem>
+                <Divider />
+                <MenuItem onClick={handleLogout}>
+                  <ListItemIcon>
+                    <LogoutIcon fontSize="small" />
+                  </ListItemIcon>
+                  Logout
+                </MenuItem>
+              </Menu>
             </>
           ) : (
             <>

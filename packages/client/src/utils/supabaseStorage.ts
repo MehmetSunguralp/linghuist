@@ -4,8 +4,44 @@
  * Gets signed URLs for files stored in Supabase Storage (requires authentication)
  */
 
-import { createSupabaseClient } from '@/lib/supabaseClient';
+import { createClient } from '@supabase/supabase-js';
 import { tokenStorage } from '@/utils/tokenStorage';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn(
+    'Supabase environment variables are not set. Some features may not work.',
+  );
+}
+
+/**
+ * Helper to get authenticated Supabase client
+ * Creates a new client with the access token in headers for each operation
+ */
+function getAuthenticatedSupabase(accessToken?: string | null) {
+  const token = accessToken || tokenStorage.get();
+
+  if (!token) {
+    throw new Error('No access token found. Please log in.');
+  }
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Missing Supabase environment variables');
+  }
+
+  // Create a new client with header-based auth
+  // Use header-based auth directly since we're using our own GraphQL auth tokens
+  // These aren't Supabase session tokens, so we pass the token in the Authorization header
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  });
+}
 
 /**
  * Gets the signed URL for a Supabase storage file (requires authentication)
@@ -47,14 +83,10 @@ export const getSupabaseStorageUrl = async (
   }
 
   try {
-    const client = createSupabaseClient(token);
-    if (!client) {
-      console.error('Failed to create Supabase client');
-      return '';
-    }
+    const authenticatedSupabase = getAuthenticatedSupabase(accessToken);
 
     // Get signed URL (valid for 1 hour by default)
-    const { data, error } = await client.storage
+    const { data, error } = await authenticatedSupabase.storage
       .from(bucket)
       .createSignedUrl(cleanPath, 3600); // 1 hour expiry
 
@@ -106,34 +138,28 @@ export const uploadImage = async (
     throw new Error('Bucket name is required');
   }
 
-  const token = accessToken || tokenStorage.get();
-  if (!token) {
-    throw new Error('No access token available for upload');
-  }
+  // Use authenticated client
+  const authenticatedSupabase = getAuthenticatedSupabase(accessToken);
 
-  const client = createSupabaseClient(token);
-  if (!client) {
-    throw new Error('Failed to create Supabase client');
-  }
-
-  // Generate unique filename with timestamp
-  const timestamp = Date.now();
+  // Generate unique filename
   const fileExt = file.name.split('.').pop();
-  const fileName = `${timestamp}.${fileExt}`;
-  const filePath = `${userId}/${folder}/${fileName}`;
+  const fileName = `${userId}/${folder}/${Date.now()}.${fileExt}`;
 
   // Upload file
-  const { error } = await client.storage.from(bucket).upload(filePath, file, {
-    cacheControl: '3600',
-    upsert: false,
-  });
+  const { data, error } = await authenticatedSupabase.storage
+    .from(bucket)
+    .upload(fileName, file, {
+      cacheControl: '3600',
+      upsert: false,
+    });
 
   if (error) {
-    throw new Error(`Upload failed: ${error.message}`);
+    throw new Error(`Failed to upload image: ${error.message}`);
   }
 
-  // Return the full path including bucket
-  return `${bucket}/${filePath}`;
+  // Return the file path (we'll use signed URLs when displaying)
+  // Format: bucket/path
+  return `${bucket}/${data.path}`;
 };
 
 /**
@@ -152,27 +178,27 @@ export const deleteImage = async (
     throw new Error('Bucket name is required');
   }
 
-  const token = accessToken || tokenStorage.get();
-  if (!token) {
-    throw new Error('No access token available for deletion');
+  const authenticatedSupabase = getAuthenticatedSupabase(accessToken);
+
+  // Extract bucket and file path
+  // Path can be in format "bucket/path" or just "path"
+  const parts = filePath.split('/');
+  let filePathToDelete: string;
+
+  if (parts[0] === bucket) {
+    // Format: bucket/path/to/file.jpg
+    filePathToDelete = parts.slice(1).join('/');
+  } else {
+    // Assume it's just a path
+    filePathToDelete = filePath;
   }
 
-  const client = createSupabaseClient(token);
-  if (!client) {
-    throw new Error('Failed to create Supabase client');
-  }
-
-  // Remove leading slash if present
-  let cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
-
-  // If the path already starts with the bucket name, remove it
-  if (cleanPath.startsWith(`${bucket}/`)) {
-    cleanPath = cleanPath.substring(bucket.length + 1);
-  }
-
-  const { error } = await client.storage.from(bucket).remove([cleanPath]);
+  const { error } = await authenticatedSupabase.storage
+    .from(bucket)
+    .remove([filePathToDelete]);
 
   if (error) {
-    throw new Error(`Delete failed: ${error.message}`);
+    console.error('Failed to delete image:', error);
+    // Don't throw - allow cleanup to fail silently
   }
 };
