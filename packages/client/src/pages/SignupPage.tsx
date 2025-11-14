@@ -130,7 +130,7 @@ const SignupPage = () => {
           </Typography>
 
           <Typography variant="h4" component="h1" gutterBottom align="center">
-            Create an Account
+            Create Your Account
           </Typography>
 
           <Typography
@@ -140,7 +140,7 @@ const SignupPage = () => {
             align="center"
             fontWeight={300}
           >
-            Start discovering new people and making new connections!
+            Start practicing language skills and making new connections!
           </Typography>
 
           {error && (
@@ -216,7 +216,11 @@ const SignupPage = () => {
                     disabled={loading}
                     sx={{ mt: 2 }}
                   >
-                    {loading ? <CircularProgress size={24} /> : 'Sign Up'}
+                    {loading ? (
+                      <CircularProgress size={24} />
+                    ) : (
+                      'Create Account'
+                    )}
                   </Button>
                 </Box>
               </Form>

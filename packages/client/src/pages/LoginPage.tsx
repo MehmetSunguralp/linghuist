@@ -37,7 +37,7 @@ const LoginPage = () => {
   const dispatch = useAppDispatch();
   const { isAuthenticated } = useAppSelector((state) => state.auth);
   const [login, { loading, error }] = useMutation(LOGIN_MUTATION);
-  
+
   // Redirect to home if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
@@ -68,7 +68,7 @@ const LoginPage = () => {
     try {
       // Clear any cached data before login
       await apolloClient.clearStore();
-      
+
       const { data } = await login({
         variables: {
           email: values.email,
@@ -79,7 +79,7 @@ const LoginPage = () => {
       if (data?.login) {
         const token = data.login;
         dispatch(setAuth({ token }));
-        
+
         // Fetch user data after login (with fetchPolicy to bypass cache)
         try {
           const { data: userData } = await apolloClient.query({
@@ -122,21 +122,24 @@ const LoginPage = () => {
     }
   };
 
-  const backgroundImageUrl = 'https://evsxpvgpnhdfgalkodpg.supabase.co/storage/v1/object/public/publicAssets/bg_img.png';
+  const backgroundImageUrl =
+    'https://evsxpvgpnhdfgalkodpg.supabase.co/storage/v1/object/public/publicAssets/bg_img.png';
 
   return (
-    <Box sx={{ 
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      height: '100dvh',
-      maxHeight: '100dvh',
-      display: 'flex',
-      overflow: 'hidden',
-      zIndex: 1000,
-    }}>
+    <Box
+      sx={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: '100dvh',
+        maxHeight: '100dvh',
+        display: 'flex',
+        overflow: 'hidden',
+        zIndex: 1000,
+      }}
+    >
       {/* Left side - Background Image */}
       <Box
         sx={{
@@ -165,8 +168,28 @@ const LoginPage = () => {
         }}
       >
         <Box sx={{ width: '100%', maxWidth: '400px' }}>
+          <Typography
+            variant="h2"
+            fontWeight={700}
+            component="h2"
+            gutterBottom
+            align="center"
+          >
+            Welcome Back!
+          </Typography>
+
           <Typography variant="h4" component="h1" gutterBottom align="center">
-            Login
+            Log into Your Account
+          </Typography>
+
+          <Typography
+            variant="subtitle2"
+            component={'h3'}
+            gutterBottom
+            align="center"
+            fontWeight={300}
+          >
+            Keep practicing language skills and making new connections!
           </Typography>
 
           <Formik
@@ -179,7 +202,14 @@ const LoginPage = () => {
           >
             {({ errors, touched }) => (
               <Form>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 3 }}>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 2,
+                    mt: 3,
+                  }}
+                >
                   <Field
                     as={TextField}
                     name="email"
@@ -254,4 +284,3 @@ const LoginPage = () => {
 };
 
 export default LoginPage;
-
