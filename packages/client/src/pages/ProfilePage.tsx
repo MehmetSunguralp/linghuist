@@ -39,9 +39,14 @@ import {
   PersonAdd as PersonAddIcon,
   PersonRemove as PersonRemoveIcon,
   Chat as ChatIcon,
+  InfoOutline as InfoOutlineIcon,
+  People as PeopleIcon,
+  RecordVoiceOver as RecordVoiceOverIcon,
+  Translate as TranslateIcon,
+  ReportGmailerrorred as ReportGmailerrorredIcon,
 } from '@mui/icons-material';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { setUser } from '@/store/authStore';
+import { setUser, logout } from '@/store/authStore';
 import {
   ME_QUERY,
   USER_QUERY,
@@ -54,14 +59,17 @@ import {
   SEND_FRIEND_REQUEST_MUTATION,
   RESPOND_FRIEND_REQUEST_MUTATION,
   REMOVE_FRIEND_MUTATION,
+  RESET_PASSWORD_MUTATION,
+  DELETE_ACCOUNT_MUTATION,
 } from '@/api/mutations';
-import { RESET_PASSWORD_MUTATION } from '@/api/mutations';
 import apolloClient from '@/lib/apolloClient';
 import {
   getSupabaseStorageUrl,
   uploadImage,
   deleteImage,
 } from '@/utils/supabaseStorage';
+import { clearSupabaseClientCache } from '@/lib/supabaseClient';
+import { clearSupabaseStorageCache } from '@/utils/supabaseStorage';
 import {
   LANGUAGES,
   LANGUAGE_LEVELS,
@@ -204,7 +212,8 @@ const ProfilePage = () => {
             'avatars',
             accessToken,
           );
-          setAvatarUrlSigned(url);
+          // Only set URL if it's valid (empty string means file not found)
+          setAvatarUrlSigned(url || '');
         } catch (error) {
           console.error('Failed to get avatar URL:', error);
           setAvatarUrlSigned('');
@@ -216,8 +225,11 @@ const ProfilePage = () => {
 
     if (profile) {
       fetchAvatar();
+    } else {
+      // Clear avatar if no profile
+      setAvatarUrlSigned('');
     }
-  }, [profile?.avatarUrl, accessToken]);
+  }, [profile?.avatarUrl, profile?.id, accessToken]);
 
   const showSnackbar = (
     message: string,
@@ -437,15 +449,52 @@ const ProfilePage = () => {
         <ProfileEditForm
           profile={profile}
           accessToken={accessToken}
+          friends={friends}
+          pendingRequests={pendingRequestsData?.pendingFriendRequests || []}
+          sentRequests={sentRequests}
+          friendsTabValue={friendsTabValue}
+          onTabChange={setFriendsTabValue}
+          onRespondRequest={async (requestId: string, accept: boolean) => {
+            try {
+              await respondFriendRequest({
+                variables: { requestId, accept },
+              });
+              showSnackbar(
+                accept ? 'Friend request accepted' : 'Friend request rejected',
+                'success',
+              );
+              refetchPendingRequests();
+              refetchFriends();
+            } catch (error: any) {
+              showSnackbar(
+                error.message || 'Failed to respond to request',
+                'error',
+              );
+            }
+          }}
           onUpdate={(updatedUser) => {
             dispatch(setUser(updatedUser));
             refetchMe();
             showSnackbar('Profile updated successfully!', 'success');
           }}
           onError={(error) => showSnackbar(error, 'error')}
+          onSuccess={(message) => showSnackbar(message, 'info')}
         />
       ) : (
-        <ProfileView profile={profile} />
+        <>
+          <ProfileView profile={profile} />
+          {/* Friends Section for non-own profile */}
+          <FriendsSection
+            isOwnProfile={false}
+            friends={friends}
+            pendingRequests={[]}
+            sentRequests={[]}
+            friendsTabValue={0}
+            onTabChange={() => {}}
+            onRespondRequest={async () => {}}
+            accessToken={accessToken}
+          />
+        </>
       )}
 
       <FriendsDialog
@@ -750,18 +799,38 @@ const ProfileHeader = ({
 interface ProfileEditFormProps {
   profile: User;
   accessToken: string | null;
+  friends: User[];
+  pendingRequests: any[];
+  sentRequests: any[];
+  friendsTabValue: number;
+  onTabChange: (value: number) => void;
+  onRespondRequest: (requestId: string, accept: boolean) => Promise<void>;
   onUpdate: (user: User) => void;
   onError: (error: string) => void;
+  onSuccess?: (message: string) => void;
 }
 
 const ProfileEditForm = ({
   profile,
   accessToken,
+  friends,
+  pendingRequests,
+  sentRequests,
+  friendsTabValue,
+  onTabChange,
+  onRespondRequest,
   onUpdate,
   onError,
+  onSuccess,
 }: ProfileEditFormProps) => {
+  const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const [updateMe, { loading }] = useMutation(UPDATE_ME_MUTATION);
   const [resetPasswordMutation] = useMutation(RESET_PASSWORD_MUTATION);
+  const [deleteAccountMutation] = useMutation(DELETE_ACCOUNT_MUTATION);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const validationSchema = Yup.object({
     name: Yup.string().required('Name is required'),
@@ -776,11 +845,23 @@ const ProfileEditForm = ({
       .max(500, 'Bio must be less than 500 characters')
       .required('Bio is required'),
     country: Yup.string().required('Country is required'),
-    age: Yup.number()
-      .typeError('Age must be a number')
-      .min(16, 'Minimum age is 16')
-      .max(99, 'Maximum age is 99')
-      .required('Age is required'),
+    age: Yup.string()
+      .required('Age is required')
+      .test('is-positive-number', 'Age must be a positive number', (value) => {
+        if (!value) return false;
+        const num = Number(value);
+        return !isNaN(num) && num > 0;
+      })
+      .test('min-age', 'Age must be larger than 16', (value) => {
+        if (!value) return false;
+        const num = Number(value);
+        return !isNaN(num) && num > 16;
+      })
+      .test('max-age', 'Age must be 99 or less', (value) => {
+        if (!value) return false;
+        const num = Number(value);
+        return !isNaN(num) && num <= 99;
+      }),
   });
 
   const initialValues = {
@@ -920,43 +1001,82 @@ const ProfileEditForm = ({
       {({ values, errors, touched, setFieldValue, isSubmitting }) => (
         <Form>
           <Paper sx={{ p: 4, mb: 4 }}>
-            <Typography variant="h5" gutterBottom>
-              Basic Information
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <InfoOutlineIcon color="primary" />
+              <Typography variant="h5">Basic Information</Typography>
+            </Box>
             <Box
               sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}
             >
-              <Field
-                as={TextField}
-                name="name"
-                label="Name"
-                placeholder="Your full name (Only visible to you)"
-                fullWidth
-                error={touched.name && !!errors.name}
-                helperText={touched.name && errors.name}
-              />
+              <Box sx={{ position: 'relative' }}>
+                <Field
+                  as={TextField}
+                  name="name"
+                  label="Name"
+                  placeholder="Your full name (Only visible to you)"
+                  fullWidth
+                  error={touched.name && !!errors.name}
+                  helperText={touched.name && errors.name}
+                />
+                <EditIcon
+                  sx={{
+                    position: 'absolute',
+                    right: 12,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    fontSize: 18,
+                    color: 'action.active',
+                    pointerEvents: 'none',
+                  }}
+                />
+              </Box>
 
-              <Field
-                as={TextField}
-                name="username"
-                label="Username"
-                placeholder="Set a unique username"
-                fullWidth
-                error={touched.username && !!errors.username}
-                helperText={touched.username && errors.username}
-              />
+              <Box sx={{ position: 'relative' }}>
+                <Field
+                  as={TextField}
+                  name="username"
+                  label="Username"
+                  placeholder="Set a unique username"
+                  fullWidth
+                  error={touched.username && !!errors.username}
+                  helperText={touched.username && errors.username}
+                />
+                <EditIcon
+                  sx={{
+                    position: 'absolute',
+                    right: 12,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    fontSize: 18,
+                    color: 'action.active',
+                    pointerEvents: 'none',
+                  }}
+                />
+              </Box>
 
-              <Field
-                as={TextField}
-                name="bio"
-                label="Bio"
-                placeholder="Tell us about yourself..."
-                fullWidth
-                multiline
-                rows={4}
-                error={touched.bio && !!errors.bio}
-                helperText={touched.bio && errors.bio}
-              />
+              <Box sx={{ position: 'relative' }}>
+                <Field
+                  as={TextField}
+                  name="bio"
+                  label="Bio"
+                  placeholder="Tell us about yourself..."
+                  fullWidth
+                  multiline
+                  rows={4}
+                  error={touched.bio && !!errors.bio}
+                  helperText={touched.bio && errors.bio}
+                />
+                <EditIcon
+                  sx={{
+                    position: 'absolute',
+                    right: 12,
+                    top: 24,
+                    fontSize: 18,
+                    color: 'action.active',
+                    pointerEvents: 'none',
+                  }}
+                />
+              </Box>
 
               <Box sx={{ display: 'flex', gap: 2 }}>
                 <FormControl
@@ -1036,19 +1156,53 @@ const ProfileEditForm = ({
                   </Field>
                 </FormControl>
 
-                <Field
-                  as={TextField}
-                  name="age"
-                  label="Age"
-                  type="number"
-                  inputProps={{ min: 16, max: 99 }}
-                  sx={{ width: 200 }}
-                  error={touched.age && !!errors.age}
-                  helperText={touched.age && errors.age}
-                />
+                <Box sx={{ position: 'relative', width: 200 }}>
+                  <Field name="age">
+                    {({ field, meta }: any) => (
+                      <TextField
+                        {...field}
+                        label="Age"
+                        type="text"
+                        fullWidth
+                        error={meta.touched && !!meta.error}
+                        helperText={meta.touched && meta.error}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                          const value = e.target.value;
+                          // Only allow digits
+                          if (value === '' || /^\d+$/.test(value)) {
+                            setFieldValue('age', value);
+                          }
+                        }}
+                      />
+                    )}
+                  </Field>
+                  <EditIcon
+                    sx={{
+                      position: 'absolute',
+                      right: 12,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      fontSize: 18,
+                      color: 'action.active',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                </Box>
               </Box>
             </Box>
           </Paper>
+
+          {/* Friends Section */}
+          <FriendsSection
+            isOwnProfile={true}
+            friends={friends}
+            pendingRequests={pendingRequests}
+            sentRequests={sentRequests}
+            friendsTabValue={friendsTabValue}
+            onTabChange={onTabChange}
+            onRespondRequest={onRespondRequest}
+            accessToken={accessToken}
+          />
 
           <LanguageSection
             title="Languages I Know"
@@ -1110,49 +1264,171 @@ const ProfileEditForm = ({
             allowNative={false}
           />
 
-          <Paper sx={{ p: 4, mb: 4 }}>
-            <Typography variant="h5" gutterBottom>
-              Password
-            </Typography>
-            <Box
-              sx={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                mt: 2,
-              }}
-            >
-              <Typography variant="body2" color="text.secondary">
-                You can send yourself a password reset email.
-              </Typography>
-              <Button
-                variant="outlined"
-                onClick={async () => {
-                  try {
-                    await resetPasswordMutation({
-                      variables: { email: profile.email },
-                    });
-                    onError('Reset email sent');
-                  } catch (e: any) {
-                    onError(e.message || 'Failed to send reset email');
-                  }
-                }}
+          {/* Danger Zone Section */}
+          <Paper
+            sx={{
+              p: 4,
+              mb: 4,
+              border: '2px solid',
+              borderColor: 'error.main',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <ReportGmailerrorredIcon sx={{ color: 'error.main' }} />
+              <Typography
+                variant="h5"
+                sx={{ color: 'error.main', fontWeight: 'bold' }}
               >
-                Reset Password
-              </Button>
+                Danger Zone
+              </Typography>
+            </Box>
+
+            <Box
+              sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}
+            >
+              {/* Delete Account */}
+              {profile.role !== 'ADMIN' && profile.role !== 'MODERATOR' && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    p: 2,
+                    border: '1px solid',
+                    borderColor: 'error.main',
+                    borderRadius: 1,
+                    bgcolor: 'rgba(211, 47, 47, 0.04)',
+                  }}
+                >
+                  <Box>
+                    <Typography
+                      variant="body1"
+                      fontWeight="medium"
+                      color="error"
+                    >
+                      Delete Account
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Once you delete your account, there is no going back.
+                      Please be certain.
+                    </Typography>
+                  </Box>
+                  <Button
+                    variant="contained"
+                    color="error"
+                    onClick={() => setDeleteDialogOpen(true)}
+                  >
+                    Delete Account
+                  </Button>
+                </Box>
+              )}
             </Box>
           </Paper>
 
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 4 }}>
+          {/* Save Changes Button - Full Width */}
+          <Box sx={{ mb: 4 }}>
             <Button
               type="submit"
               variant="contained"
               size="large"
+              fullWidth
               disabled={isSubmitting || loading}
             >
               {isSubmitting || loading ? 'Saving...' : 'Save Changes'}
             </Button>
           </Box>
+
+          {/* Delete Account Confirmation Dialog */}
+          <Dialog
+            open={deleteDialogOpen}
+            onClose={() => {
+              setDeleteDialogOpen(false);
+              setDeletePassword('');
+            }}
+            maxWidth="sm"
+            fullWidth
+          >
+            <DialogTitle sx={{ color: 'error.main', fontWeight: 'bold' }}>
+              Delete Account
+            </DialogTitle>
+            <DialogContent>
+              <Alert severity="error" sx={{ mb: 2 }}>
+                <Typography variant="body2" fontWeight="medium">
+                  Warning: This action cannot be undone!
+                </Typography>
+                <Typography variant="body2">
+                  All your data, including posts, comments, messages, and
+                  friends, will be permanently deleted.
+                </Typography>
+              </Alert>
+              <Typography variant="body2" sx={{ mb: 2 }}>
+                To confirm, please enter your password:
+              </Typography>
+              <TextField
+                type="password"
+                label="Password"
+                fullWidth
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                variant="outlined"
+                autoFocus
+              />
+            </DialogContent>
+            <DialogActions>
+              <Button
+                onClick={() => {
+                  setDeleteDialogOpen(false);
+                  setDeletePassword('');
+                }}
+                color="inherit"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!deletePassword) {
+                    onError('Please enter your password');
+                    return;
+                  }
+
+                  setDeletingAccount(true);
+                  try {
+                    const { data } = await deleteAccountMutation({
+                      variables: { password: deletePassword },
+                    });
+
+                    if (data?.deleteAccount) {
+                      // Clear all caches and state
+                      await apolloClient.clearStore();
+                      clearSupabaseClientCache();
+                      clearSupabaseStorageCache();
+                      dispatch(logout());
+
+                      // Show success message briefly before redirect
+                      if (onSuccess) {
+                        onSuccess('Account deleted successfully');
+                      }
+
+                      // Redirect to home/login after a short delay
+                      setTimeout(() => {
+                        navigate('/');
+                      }, 1500);
+                    }
+                  } catch (error: any) {
+                    onError(error.message || 'Failed to delete account');
+                    setDeletePassword('');
+                  } finally {
+                    setDeletingAccount(false);
+                  }
+                }}
+                variant="contained"
+                color="error"
+                disabled={deletingAccount || !deletePassword}
+              >
+                {deletingAccount ? 'Deleting...' : 'Delete Account'}
+              </Button>
+            </DialogActions>
+          </Dialog>
         </Form>
       )}
     </Formik>
@@ -1200,7 +1476,14 @@ const LanguageSection = ({
           mb: 2,
         }}
       >
-        <Typography variant="h5">{title}</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {title === 'Languages I Know' ? (
+            <RecordVoiceOverIcon color="primary" />
+          ) : (
+            <TranslateIcon color="primary" />
+          )}
+          <Typography variant="h5">{title}</Typography>
+        </Box>
         <Button
           variant="outlined"
           size="small"
@@ -1252,7 +1535,11 @@ const LanguageSection = ({
                 ))}
               </Select>
             </FormControl>
-            <IconButton color="error" onClick={() => onRemove(index)}>
+            <IconButton
+              color="error"
+              onClick={() => onRemove(index)}
+              disabled={languages.length === 1}
+            >
               <DeleteIcon />
             </IconButton>
           </Box>
@@ -1375,6 +1662,228 @@ const ProfileView = ({ profile }: ProfileViewProps) => {
             ))}
           </Box>
         </Box>
+      )}
+    </Paper>
+  );
+};
+
+// Friends Section Component (defined before ProfilePage to avoid hoisting issues)
+interface FriendsSectionProps {
+  isOwnProfile: boolean;
+  friends: User[];
+  pendingRequests: any[];
+  sentRequests: any[];
+  friendsTabValue: number;
+  onTabChange: (value: number) => void;
+  onRespondRequest: (requestId: string, accept: boolean) => Promise<void>;
+  accessToken?: string | null;
+}
+
+const FriendsSection = ({
+  isOwnProfile,
+  friends,
+  pendingRequests,
+  sentRequests,
+  friendsTabValue,
+  onTabChange,
+  onRespondRequest,
+  accessToken,
+}: FriendsSectionProps) => {
+  const [friendAvatars, setFriendAvatars] = useState<Record<string, string>>(
+    {},
+  );
+
+  useEffect(() => {
+    const fetchFriendAvatars = async () => {
+      if (!accessToken) return;
+
+      const avatarPromises = friends.map(async (friend) => {
+        if (!friend.avatarUrl) return null;
+        try {
+          const url = await getSupabaseStorageUrl(
+            friend.avatarUrl,
+            'avatars',
+            accessToken,
+          );
+          return { id: friend.id, url: url || '' };
+        } catch (error) {
+          console.error(`Failed to get avatar for friend ${friend.id}:`, error);
+          return null;
+        }
+      });
+
+      const results = await Promise.all(avatarPromises);
+      const avatarMap: Record<string, string> = {};
+      results.forEach((result) => {
+        if (result && result.url) {
+          avatarMap[result.id] = result.url;
+        }
+      });
+      setFriendAvatars(avatarMap);
+    };
+
+    if (friends.length > 0) {
+      fetchFriendAvatars();
+    }
+  }, [friends, accessToken]);
+  return (
+    <Paper sx={{ p: 4, mb: 4 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+        <PeopleIcon color="primary" />
+        <Typography variant="h5">Friends</Typography>
+      </Box>
+
+      {isOwnProfile ? (
+        <Tabs
+          value={friendsTabValue}
+          onChange={(_, newValue) => onTabChange(newValue)}
+          sx={{ mb: 3 }}
+        >
+          <Tab label={`Friends (${friends.length})`} />
+          <Tab label={`Sent (${sentRequests.length})`} />
+          <Tab label={`Received (${pendingRequests.length})`} />
+        </Tabs>
+      ) : (
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          Friends ({friends.length})
+        </Typography>
+      )}
+
+      {/* Friends Tab */}
+      <TabPanel value={friendsTabValue} index={0}>
+        {friends.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            {isOwnProfile
+              ? "You don't have any friends yet."
+              : 'No friends to display.'}
+          </Typography>
+        ) : (
+          <Grid container spacing={2}>
+            {friends.map((friend) => (
+              <Grid size={{ xs: 6, sm: 4, md: 3 }} key={friend.id}>
+                <Paper
+                  sx={{
+                    p: 2,
+                    textAlign: 'center',
+                    '&:hover': {
+                      bgcolor: 'action.hover',
+                    },
+                  }}
+                >
+                  <Box sx={{ position: 'relative', display: 'inline-block' }}>
+                    <Avatar
+                      src={friendAvatars[friend.id]}
+                      sx={{
+                        width: 56,
+                        height: 56,
+                        mx: 'auto',
+                        mb: 1,
+                        bgcolor: 'primary.main',
+                      }}
+                    >
+                      {(friend.username || friend.email || 'U')
+                        .charAt(0)
+                        .toUpperCase()}
+                    </Avatar>
+                    {friend.country && (
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          bottom: 4,
+                          right: '50%',
+                          transform: 'translateX(calc(50% - 28px))',
+                          width: 20,
+                          height: 20,
+                          borderRadius: '50%',
+                          border: '2px solid white',
+                          bgcolor: 'white',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <FlagIcon countryCode={friend.country} size={16} />
+                      </Box>
+                    )}
+                  </Box>
+                  <Typography variant="body2" noWrap>
+                    {friend.username || friend.email}
+                  </Typography>
+                </Paper>
+              </Grid>
+            ))}
+          </Grid>
+        )}
+      </TabPanel>
+
+      {/* Sent Requests Tab (only for own profile) */}
+      {isOwnProfile && (
+        <TabPanel value={friendsTabValue} index={1}>
+          {sentRequests.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              No sent requests
+            </Typography>
+          ) : (
+            <Grid container spacing={2}>
+              {sentRequests.map((request) => (
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={request.id}>
+                  <Paper sx={{ p: 2 }}>
+                    <Typography variant="body2" gutterBottom>
+                      {request.receiver?.username || request.receiver?.email}
+                    </Typography>
+                    <Chip
+                      label="Pending"
+                      size="small"
+                      color="warning"
+                      sx={{ mt: 1 }}
+                    />
+                  </Paper>
+                </Grid>
+              ))}
+            </Grid>
+          )}
+        </TabPanel>
+      )}
+
+      {/* Received Requests Tab (only for own profile) */}
+      {isOwnProfile && (
+        <TabPanel value={friendsTabValue} index={2}>
+          {pendingRequests.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              No received requests
+            </Typography>
+          ) : (
+            <Grid container spacing={2}>
+              {pendingRequests.map((request) => (
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={request.id}>
+                  <Paper sx={{ p: 2 }}>
+                    <Typography variant="body2" gutterBottom>
+                      {request.sender?.username || request.sender?.email}
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="success"
+                        onClick={() => onRespondRequest(request.id, true)}
+                      >
+                        Accept
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="error"
+                        onClick={() => onRespondRequest(request.id, false)}
+                      >
+                        Reject
+                      </Button>
+                    </Box>
+                  </Paper>
+                </Grid>
+              ))}
+            </Grid>
+          )}
+        </TabPanel>
       )}
     </Paper>
   );

@@ -36,3 +36,8 @@ export const VERIFY_EMAIL_MUTATION = gql`
   }
 `;
 
+export const DELETE_ACCOUNT_MUTATION = gql`
+  mutation DeleteAccount($password: String!) {
+    deleteAccount(password: $password)
+  }
+`;

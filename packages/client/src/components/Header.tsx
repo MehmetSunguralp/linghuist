@@ -17,7 +17,11 @@ import {
 } from '@mui/icons-material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { logout, setSignedAvatarUrl } from '@/store/authStore';
+import {
+  logout,
+  setSignedAvatarUrl,
+  clearSignedAvatarUrl,
+} from '@/store/authStore';
 import {
   getSupabaseStorageUrl,
   clearSupabaseStorageCache,
@@ -45,6 +49,10 @@ const Header = () => {
   useEffect(() => {
     const fetchAvatarUrl = async () => {
       if (!user?.avatarUrl || !accessToken) {
+        // Clear avatar if no user or token
+        if (signedAvatarUrl) {
+          dispatch(clearSignedAvatarUrl());
+        }
         return;
       }
 
@@ -71,16 +79,21 @@ const Header = () => {
           // Cache the signed URL with expiry time (1 hour from now)
           const expiryTime = now + SIGNED_URL_VALIDITY_MS;
           dispatch(setSignedAvatarUrl({ url, expiryTime }));
+        } else {
+          // Clear avatar if fetch failed (file might not exist)
+          dispatch(clearSignedAvatarUrl());
         }
       } catch (error) {
         console.error('Failed to get avatar URL:', error);
+        // Clear avatar on error (file might not exist or be inaccessible)
+        dispatch(clearSignedAvatarUrl());
       }
     };
 
     fetchAvatarUrl();
     // Only depend on user avatar URL and access token, not the cached values
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.avatarUrl, accessToken]);
+  }, [user?.avatarUrl, user?.id, accessToken]);
 
   const handleAvatarClick = (event: React.MouseEvent<HTMLElement>) => {
     setAvatarMenuAnchor(event.currentTarget);
@@ -109,7 +122,7 @@ const Header = () => {
   };
 
   return (
-    <AppBar position="static">
+    <AppBar position="sticky">
       <Toolbar sx={{ display: 'flex', justifyContent: 'space-between' }}>
         <RouterLink to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
           <Typography variant="h6" component="div">

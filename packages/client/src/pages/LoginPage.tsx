@@ -13,11 +13,11 @@ import {
   Link,
   Snackbar,
 } from '@mui/material';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { LOGIN_MUTATION } from '@/api/mutations';
 import { ME_QUERY } from '@/api/queries';
-import { useAppDispatch } from '@/store/hooks';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { setAuth } from '@/store/authStore';
 import apolloClient from '@/lib/apolloClient';
 import type { User } from '@/types';
@@ -37,7 +37,15 @@ interface LoginFormValues {
 const LoginPage = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const { isAuthenticated } = useAppSelector((state) => state.auth);
   const [login, { loading, error }] = useMutation(LOGIN_MUTATION);
+  
+  // Redirect to home if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/');
+    }
+  }, [isAuthenticated, navigate]);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;

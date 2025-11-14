@@ -88,7 +88,20 @@ export const getSupabaseStorageUrl = async (
       .createSignedUrl(cleanPath, 3600); // 1 hour expiry
 
     if (error) {
-      console.error('Error creating signed URL:', error);
+      // Log more details about the error for debugging
+      console.error('Error creating signed URL:', {
+        error: error.message,
+        path: cleanPath,
+        bucket,
+        originalPath: filePath,
+      });
+      
+      // If object not found, return empty string (file doesn't exist)
+      if (error.message?.includes('not found') || error.message?.includes('Object not found')) {
+        console.warn(`Avatar file not found at path: ${cleanPath}`);
+        return '';
+      }
+      
       return '';
     }
 

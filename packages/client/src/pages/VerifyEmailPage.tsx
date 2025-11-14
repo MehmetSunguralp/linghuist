@@ -9,7 +9,6 @@ import {
   Alert,
   CircularProgress,
   Button,
-  Link,
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import { VERIFY_EMAIL_MUTATION } from '@/api/mutations';
@@ -19,7 +18,9 @@ const VerifyEmailPage = () => {
   const navigate = useNavigate();
   const [verifyEmail, { loading, error }] = useMutation(VERIFY_EMAIL_MUTATION);
   const [isVerified, setIsVerified] = useState(false);
-  const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [verificationError, setVerificationError] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     const verify = async () => {
@@ -27,10 +28,10 @@ const VerifyEmailPage = () => {
       // Format: #access_token=...&type=...&expires_in=...
       const hash = window.location.hash;
       const urlParams = new URLSearchParams(hash.substring(1));
-      
+
       // Try to get userId from query params first (if passed explicitly)
       let userId = searchParams.get('userId');
-      
+
       // If not in query params, try to extract from hash
       if (!userId) {
         // Supabase might pass userId in the hash
@@ -52,7 +53,9 @@ const VerifyEmailPage = () => {
       }
 
       if (!userId) {
-        setVerificationError('No user ID found in verification link. Please try clicking the link from your email again.');
+        setVerificationError(
+          'No user ID found in verification link. Please try clicking the link from your email again.',
+        );
         return;
       }
 
@@ -77,7 +80,15 @@ const VerifyEmailPage = () => {
   }, [verifyEmail, navigate, searchParams]);
 
   return (
-    <Container maxWidth="sm" sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <Container
+      maxWidth="sm"
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
       <Paper elevation={3} sx={{ p: 4, width: '100%', textAlign: 'center' }}>
         {loading && (
           <Box>
@@ -144,4 +155,3 @@ const VerifyEmailPage = () => {
 };
 
 export default VerifyEmailPage;
-

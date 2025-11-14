@@ -17,10 +17,19 @@ const authSlice = createSlice({
   reducers: {
     setAuth: (state, action: PayloadAction<{ token: string; user?: User }>) => {
       const { token, user } = action.payload;
+      const previousUserId = state.user?.id;
+      const newUserId = user?.id;
+      
       tokenStorage.set(token);
       state.accessToken = token;
       state.user = user || null;
       state.isAuthenticated = true;
+      
+      // Clear cached avatar URL if user changed (different user logged in)
+      if (previousUserId !== newUserId) {
+        state.signedAvatarUrl = null;
+        state.signedAvatarUrlExpiry = null;
+      }
     },
     logout: (state) => {
       tokenStorage.remove();
@@ -31,9 +40,15 @@ const authSlice = createSlice({
       state.signedAvatarUrlExpiry = null;
     },
     setUser: (state, action: PayloadAction<User>) => {
+      const previousUserId = state.user?.id;
+      const previousAvatarUrl = state.user?.avatarUrl;
+      const newUserId = action.payload.id;
+      const newAvatarUrl = action.payload.avatarUrl;
+      
       state.user = action.payload;
-      // Clear cached avatar URL if user changed
-      if (state.user?.avatarUrl !== action.payload.avatarUrl) {
+      
+      // Clear cached avatar URL if user changed (different user) or avatar URL changed
+      if (previousUserId !== newUserId || previousAvatarUrl !== newAvatarUrl) {
         state.signedAvatarUrl = null;
         state.signedAvatarUrlExpiry = null;
       }

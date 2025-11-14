@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useMutation } from '@apollo/client';
 import { Formik, Form, Field } from 'formik';
 import * as Yup from 'yup';
@@ -14,18 +15,12 @@ import {
 } from '@mui/material';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { SIGNUP_MUTATION } from '@/api/mutations';
+import { emailValidation, passwordValidation, PASSWORD_HELPER_TEXT } from '@/utils/validation';
+import { useAppSelector } from '@/store/hooks';
 
 const validationSchema = Yup.object({
-  email: Yup.string()
-    .email('Invalid email address')
-    .required('Email is required'),
-  password: Yup.string()
-    .min(6, 'Password must be at least 6 characters')
-    .matches(
-      /^(?=.*[A-Z])(?=.*[!@#$%^&*])/,
-      'Password must contain at least one uppercase letter and one special character'
-    )
-    .required('Password is required'),
+  email: emailValidation,
+  password: passwordValidation,
   confirmPassword: Yup.string()
     .oneOf([Yup.ref('password')], 'Passwords must match')
     .required('Please confirm your password'),
@@ -39,7 +34,15 @@ interface SignupFormValues {
 
 const SignupPage = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAppSelector((state) => state.auth);
   const [signup, { loading, error }] = useMutation(SIGNUP_MUTATION);
+  
+  // Redirect to home if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/');
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (values: SignupFormValues) => {
     try {
@@ -104,7 +107,7 @@ const SignupPage = () => {
                   helperText={
                     touched.password && errors.password
                       ? errors.password
-                      : 'Must be at least 6 characters with one uppercase and one special character'
+                      : PASSWORD_HELPER_TEXT
                   }
                   variant="outlined"
                 />
