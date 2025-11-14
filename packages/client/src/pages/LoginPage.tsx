@@ -187,7 +187,8 @@ const LoginPage = () => {
         <Alert
           onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
-          sx={{ width: '100%' }}
+          variant="filled"
+          sx={{ width: '100%', color: 'white' }}
         >
           {snackbar.message}
         </Alert>

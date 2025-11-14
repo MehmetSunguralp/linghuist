@@ -235,13 +235,6 @@ const ProfilePage = () => {
 
     setUploadingAvatar(true);
     try {
-      // Validate file
-      const fileSizeMB = file.size / (1024 * 1024);
-      if (fileSizeMB > 5) {
-        showSnackbar('Image must be less than 5MB', 'error');
-        return;
-      }
-
       if (!file.type.startsWith('image/')) {
         showSnackbar('Please select an image file', 'error');
         return;
@@ -421,8 +414,17 @@ const ProfilePage = () => {
         open={snackbar.open}
         autoHideDuration={6000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
-        message={snackbar.message}
-      />
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: '100%', color: 'white' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };
