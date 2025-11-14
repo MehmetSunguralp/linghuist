@@ -17,6 +17,7 @@ import {
   IconButton,
   Menu,
   MenuItem,
+  ListItemIcon,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -44,6 +45,8 @@ import {
   RecordVoiceOver as RecordVoiceOverIcon,
   Translate as TranslateIcon,
   ReportGmailerrorred as ReportGmailerrorredIcon,
+  Visibility as VisibilityIcon,
+  PhotoCamera as PhotoCameraIcon,
 } from '@mui/icons-material';
 import KeyIcon from '@mui/icons-material/Key';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
@@ -125,7 +128,6 @@ const ProfilePage = () => {
   const [avatarUrlSigned, setAvatarUrlSigned] = useState<string>('');
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [profileAvatarLoaded, setProfileAvatarLoaded] = useState(false);
-  const [friendsDialogOpen, setFriendsDialogOpen] = useState(false);
   const [friendsTabValue, setFriendsTabValue] = useState(0);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -143,6 +145,7 @@ const ProfilePage = () => {
   const [cropperOpen, setCropperOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const cropperRef = useRef<CropperRef>(null);
+  const [avatarViewDialogOpen, setAvatarViewDialogOpen] = useState(false);
 
   // Queries
   const {
@@ -488,8 +491,7 @@ const ProfilePage = () => {
         isFriend={isFriend}
         hasPendingRequest={hasPendingRequest}
         onFriendAction={handleFriendAction}
-        friendsCount={friends.length}
-        onFriendsClick={() => setFriendsDialogOpen(true)}
+        onViewImage={() => setAvatarViewDialogOpen(true)}
       />
 
       {isOwnProfile ? (
@@ -544,33 +546,57 @@ const ProfilePage = () => {
         </>
       )}
 
-      <FriendsDialog
-        open={friendsDialogOpen}
-        onClose={() => setFriendsDialogOpen(false)}
-        friends={friends}
-        pendingRequests={pendingRequestsData?.pendingFriendRequests || []}
-        sentRequests={sentRequests}
-        tabValue={friendsTabValue}
-        onTabChange={setFriendsTabValue}
-        onRespondRequest={async (requestId, accept) => {
-          try {
-            await respondFriendRequest({
-              variables: { requestId, accept },
-            });
-            showSnackbar(
-              accept ? 'Friend request accepted' : 'Friend request rejected',
-              'success',
-            );
-            refetchPendingRequests();
-            refetchFriends();
-          } catch (error: any) {
-            showSnackbar(
-              error.message || 'Failed to respond to request',
-              'error',
-            );
-          }
+      {/* Avatar View Dialog */}
+      <Dialog
+        open={avatarViewDialogOpen}
+        onClose={() => setAvatarViewDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: 'background.paper',
+            maxWidth: '90vw',
+          },
         }}
-      />
+      >
+        <DialogTitle
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <Typography variant="h6">Profile Picture</Typography>
+          <IconButton
+            onClick={() => setAvatarViewDialogOpen(false)}
+            size="small"
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent
+          sx={{
+            p: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: '400px',
+          }}
+        >
+          {avatarUrlSigned && (
+            <Box
+              component="img"
+              src={avatarUrlSigned}
+              alt={profile.username || profile.email || 'Profile picture'}
+              sx={{
+                maxWidth: '100%',
+                maxHeight: '70vh',
+                objectFit: 'contain',
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Avatar Cropper Dialog */}
       <Dialog
@@ -689,8 +715,7 @@ interface ProfileHeaderProps {
   isFriend: boolean;
   hasPendingRequest: boolean;
   onFriendAction: () => void;
-  friendsCount: number;
-  onFriendsClick: () => void;
+  onViewImage: () => void;
 }
 
 const ProfileHeader = ({
@@ -708,8 +733,7 @@ const ProfileHeader = ({
   isFriend,
   hasPendingRequest,
   onFriendAction,
-  friendsCount,
-  onFriendsClick,
+  onViewImage,
 }: ProfileHeaderProps) => {
   return (
     <Paper sx={{ p: 4, mb: 4, textAlign: 'center' }}>
@@ -765,10 +789,13 @@ const ProfileHeader = ({
             {avatarUrlSigned && (
               <MenuItem
                 onClick={() => {
-                  window.open(avatarUrlSigned, '_blank');
+                  onViewImage();
                   onAvatarMenuClose();
                 }}
               >
+                <ListItemIcon>
+                  <VisibilityIcon fontSize="small" />
+                </ListItemIcon>
                 View Image
               </MenuItem>
             )}
@@ -778,6 +805,9 @@ const ProfileHeader = ({
                 onAvatarMenuClose();
               }}
             >
+              <ListItemIcon>
+                <PhotoCameraIcon fontSize="small" />
+              </ListItemIcon>
               Change Image
             </MenuItem>
           </Menu>
@@ -835,17 +865,6 @@ const ProfileHeader = ({
             </Button>
           )}
         </Box>
-      )}
-
-      {isOwnProfile && (
-        <Typography
-          variant="body2"
-          color="primary"
-          sx={{ mt: 2, cursor: 'pointer', textDecoration: 'underline' }}
-          onClick={onFriendsClick}
-        >
-          {friendsCount} {friendsCount === 1 ? 'Friend' : 'Friends'}
-        </Typography>
       )}
     </Paper>
   );
@@ -1909,16 +1928,13 @@ const FriendsSection = ({
                         sx={{
                           position: 'absolute',
                           bottom: 4,
-                          right: '50%',
-                          transform: 'translateX(calc(50% - 28px))',
+                          right: 4,
                           width: 20,
                           height: 20,
-                          borderRadius: '50%',
-                          border: '2px solid white',
-                          bgcolor: 'white',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
+                          overflow: 'hidden',
                         }}
                       >
                         <FlagIcon countryCode={friend.country} size={16} />
@@ -2005,122 +2021,6 @@ const FriendsSection = ({
         </TabPanel>
       )}
     </Paper>
-  );
-};
-
-// Friends Dialog Component
-interface FriendsDialogProps {
-  open: boolean;
-  onClose: () => void;
-  friends: User[];
-  pendingRequests: any[];
-  sentRequests: any[];
-  tabValue: number;
-  onTabChange: (value: number) => void;
-  onRespondRequest: (requestId: string, accept: boolean) => Promise<void>;
-}
-
-const FriendsDialog = ({
-  open,
-  onClose,
-  friends,
-  pendingRequests,
-  sentRequests,
-  tabValue,
-  onTabChange,
-  onRespondRequest,
-}: FriendsDialogProps) => {
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>Friends & Requests</DialogTitle>
-      <DialogContent>
-        <Tabs
-          value={tabValue}
-          onChange={(_, newValue) => onTabChange(newValue)}
-        >
-          <Tab label={`Friends (${friends.length})`} />
-          <Tab label={`Sent (${sentRequests.length})`} />
-          <Tab label={`Received (${pendingRequests.length})`} />
-        </Tabs>
-        <TabPanel value={tabValue} index={0}>
-          {friends.length === 0 ? (
-            <Typography color="text.secondary">
-              You don't have any friends yet.
-            </Typography>
-          ) : (
-            <Grid container spacing={2} sx={{ mt: 1 }}>
-              {friends.map((friend) => (
-                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={friend.id}>
-                  <Paper sx={{ p: 2 }}>
-                    <Typography variant="subtitle1">
-                      {friend.username || friend.email}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {friend.bio || 'No bio'}
-                    </Typography>
-                  </Paper>
-                </Grid>
-              ))}
-            </Grid>
-          )}
-        </TabPanel>
-        <TabPanel value={tabValue} index={1}>
-          {sentRequests.length === 0 ? (
-            <Typography color="text.secondary">No sent requests</Typography>
-          ) : (
-            <Grid container spacing={2} sx={{ mt: 1 }}>
-              {sentRequests.map((request) => (
-                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={request.id}>
-                  <Paper sx={{ p: 2 }}>
-                    <Typography variant="subtitle1">
-                      {request.receiver?.username || request.receiver?.email}
-                    </Typography>
-                  </Paper>
-                </Grid>
-              ))}
-            </Grid>
-          )}
-        </TabPanel>
-        <TabPanel value={tabValue} index={2}>
-          {pendingRequests.length === 0 ? (
-            <Typography color="text.secondary">No received requests</Typography>
-          ) : (
-            <Grid container spacing={2} sx={{ mt: 1 }}>
-              {pendingRequests.map((request) => (
-                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={request.id}>
-                  <Paper sx={{ p: 2 }}>
-                    <Typography variant="subtitle1">
-                      {request.sender?.username || request.sender?.email}
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                      <Button
-                        size="small"
-                        variant="contained"
-                        color="success"
-                        onClick={() => onRespondRequest(request.id, true)}
-                      >
-                        Accept
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color="error"
-                        onClick={() => onRespondRequest(request.id, false)}
-                      >
-                        Reject
-                      </Button>
-                    </Box>
-                  </Paper>
-                </Grid>
-              ))}
-            </Grid>
-          )}
-        </TabPanel>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Close</Button>
-      </DialogActions>
-    </Dialog>
   );
 };
 
