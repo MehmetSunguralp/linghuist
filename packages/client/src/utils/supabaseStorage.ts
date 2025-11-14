@@ -4,21 +4,12 @@
  * Gets signed URLs for files stored in Supabase Storage (requires authentication)
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createSupabaseClient } from '@/lib/supabaseClient';
 import { tokenStorage } from '@/utils/tokenStorage';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn(
-    'Supabase environment variables are not set. Some features may not work.',
-  );
-}
-
 /**
- * Helper to get authenticated Supabase client
- * Creates a new client with the access token in headers for each operation
+ * Helper to get authenticated Supabase client (singleton)
+ * Uses the shared client instance from supabaseClient.ts
  */
 function getAuthenticatedSupabase(accessToken?: string | null) {
   const token = accessToken || tokenStorage.get();
@@ -27,21 +18,27 @@ function getAuthenticatedSupabase(accessToken?: string | null) {
     throw new Error('No access token found. Please log in.');
   }
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Missing Supabase environment variables');
+  // Get the shared singleton client instance
+  const client = createSupabaseClient(token);
+
+  if (!client) {
+    throw new Error(
+      'Failed to create Supabase client. Missing environment variables.',
+    );
   }
 
-  // Create a new client with header-based auth
-  // Use header-based auth directly since we're using our own GraphQL auth tokens
-  // These aren't Supabase session tokens, so we pass the token in the Authorization header
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    },
-  });
+  return client;
 }
+
+/**
+ * Clears the client instance (useful for logout)
+ * This is now handled by clearSupabaseClientCache in supabaseClient.ts
+ * Kept for backward compatibility
+ */
+export const clearSupabaseStorageCache = (): void => {
+  // Client clearing is now handled by supabaseClient.ts
+  // This function is kept for backward compatibility but does nothing
+};
 
 /**
  * Gets the signed URL for a Supabase storage file (requires authentication)

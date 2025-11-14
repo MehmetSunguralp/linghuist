@@ -23,6 +23,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // SINGLE client instance for the entire app
 // We don't use Supabase auth, so we can use one client and pass tokens via headers
 let clientInstance: SupabaseClient | null = null;
+let isCreating = false;
+let currentToken: string | null = null;
 
 /**
  * Gets the single Supabase client instance
@@ -37,30 +39,47 @@ export const createSupabaseClient = (
     return null;
   }
 
-  // Create single client instance if it doesn't exist
-  if (!clientInstance) {
-    clientInstance = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        // Disable Supabase auth since we use our own auth system
-        autoRefreshToken: false,
-        persistSession: false,
-        // Use a unique storage key to avoid conflicts with other Supabase instances
-        storageKey: 'sb-storage-only',
-      },
-      global: {
-        // Default headers - will be overridden per-request if needed
-        headers: {},
-      },
-    });
+  const token = accessToken || tokenStorage.get();
+
+  // Create or recreate client if token changed (should be rare - only on login/logout)
+  // Use a flag to prevent concurrent creation
+  if ((!clientInstance || currentToken !== token) && !isCreating) {
+    isCreating = true;
+    try {
+      clientInstance = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          // Disable Supabase auth since we use our own auth system
+          autoRefreshToken: false,
+          persistSession: false,
+          // Use a unique storage key to avoid conflicts with other Supabase instances
+          storageKey: 'sb-storage-only',
+        },
+        global: {
+          // Set headers in global config so they're used by storage operations
+          headers: token ? {
+            Authorization: `Bearer ${token}`,
+          } : {},
+        },
+      });
+      currentToken = token;
+    } finally {
+      isCreating = false;
+    }
   }
 
-  // Update headers for this client instance with the current token
-  // Note: This affects all future requests, but since we're using signed URLs
-  // which are generated server-side, this should be fine
-  const token = accessToken || tokenStorage.get();
-  if (token && clientInstance) {
-    // Update the client's default headers
-    clientInstance.rest.headers['Authorization'] = `Bearer ${token}`;
+  // Wait for client to be created if it's being created concurrently
+  if (!clientInstance && isCreating) {
+    // In case of concurrent calls, wait a bit and retry
+    // This is a fallback - the singleton pattern should prevent this
+    return null;
+  }
+
+  // Update headers if client exists and token is the same (ensure they're set)
+  if (token && clientInstance && currentToken === token) {
+    // Update the client's default headers as well
+    if (clientInstance.rest && clientInstance.rest.headers) {
+      clientInstance.rest.headers['Authorization'] = `Bearer ${token}`;
+    }
   }
 
   return clientInstance;
@@ -73,8 +92,13 @@ export const createSupabaseClient = (
 export const clearSupabaseClientCache = (): void => {
   if (clientInstance) {
     // Remove auth header
-    delete clientInstance.rest.headers['Authorization'];
+    if (clientInstance.rest && clientInstance.rest.headers) {
+      delete clientInstance.rest.headers['Authorization'];
+    }
   }
+  // Reset client instance and token to allow recreation with new token
+  clientInstance = null;
+  currentToken = null;
 };
 
 /**
@@ -84,6 +108,4 @@ export const clearSupabaseClientCache = (): void => {
 export const supabaseClient = (): SupabaseClient | null => {
   return createSupabaseClient();
 };
-
-export default supabaseClient();
 

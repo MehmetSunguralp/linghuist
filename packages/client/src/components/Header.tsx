@@ -18,7 +18,10 @@ import {
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { logout, setSignedAvatarUrl } from '@/store/authStore';
-import { getSupabaseStorageUrl } from '@/utils/supabaseStorage';
+import {
+  getSupabaseStorageUrl,
+  clearSupabaseStorageCache,
+} from '@/utils/supabaseStorage';
 import apolloClient from '@/lib/apolloClient';
 import { clearSupabaseClientCache } from '@/lib/supabaseClient';
 
@@ -91,8 +94,9 @@ const Header = () => {
     handleAvatarMenuClose();
     // Clear Apollo Client cache
     await apolloClient.clearStore();
-    // Clear Supabase client cache
+    // Clear Supabase client caches
     clearSupabaseClientCache();
+    clearSupabaseStorageCache();
     // Clear Redux state (includes signedAvatarUrl)
     dispatch(logout());
     // Navigate to login
