@@ -27,6 +27,18 @@ export class UserService {
     });
   }
 
+  async getUserByUsername(username: string) {
+    return prisma.user.findUnique({
+      where: { username },
+      include: {
+        languagesKnown: true,
+        languagesLearn: true,
+        sentFriendRequests: { include: { receiver: true } },
+        receivedFriendRequests: { include: { sender: true } },
+      },
+    });
+  }
+
   async getAllUsers() {
     return prisma.user.findMany({
       include: {

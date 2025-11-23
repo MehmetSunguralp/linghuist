@@ -56,6 +56,34 @@ export const USER_QUERY = gql`
   }
 `;
 
+export const USER_BY_USERNAME_QUERY = gql`
+  query UserByUsername($username: String!) {
+    userByUsername(username: $username) {
+      id
+      email
+      username
+      name
+      avatarUrl
+      userThumbnailUrl
+      bio
+      role
+      isVerified
+      country
+      age
+      languagesKnown {
+        name
+        level
+        code
+      }
+      languagesLearn {
+        name
+        level
+        code
+      }
+    }
+  }
+`;
+
 export const FRIENDS_QUERY = gql`
   query Friends {
     friends {

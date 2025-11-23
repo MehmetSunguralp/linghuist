@@ -35,7 +35,7 @@ const AppContent = () => {
           <Route path="/verified" element={<VerifyEmailPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/profile/:id" element={<ProfilePage />} />
+          <Route path="/profile/:username" element={<ProfilePage />} />
         </Routes>
       </Box>
     </Router>

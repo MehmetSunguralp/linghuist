@@ -53,7 +53,7 @@ import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { setUser, logout } from '@/store/authStore';
 import {
   ME_QUERY,
-  USER_QUERY,
+  USER_BY_USERNAME_QUERY,
   FRIENDS_QUERY,
   PENDING_FRIEND_REQUESTS_QUERY,
   SENT_FRIEND_REQUESTS_QUERY,
@@ -116,14 +116,14 @@ function TabPanel(props: TabPanelProps) {
 
 const ProfilePage = () => {
   const navigate = useNavigate();
-  const { id } = useParams<{ id?: string }>();
+  const { username } = useParams<{ username?: string }>();
   const dispatch = useAppDispatch();
   const { user: currentUser, accessToken } = useAppSelector(
     (state) => state.auth,
   );
 
-  const isOwnProfile = !id || id === currentUser?.id;
-  const profileUserId = id || currentUser?.id;
+  const isOwnProfile = !username || username === currentUser?.username;
+  const profileUsername = username || currentUser?.username;
 
   const [avatarUrlSigned, setAvatarUrlSigned] = useState<string>('');
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -163,9 +163,9 @@ const ProfilePage = () => {
     loading: userLoading,
     error: userError,
     refetch: refetchUser,
-  } = useQuery(USER_QUERY, {
-    variables: { id: profileUserId! },
-    skip: isOwnProfile || !profileUserId,
+  } = useQuery(USER_BY_USERNAME_QUERY, {
+    variables: { username: profileUsername! },
+    skip: isOwnProfile || !profileUsername,
     fetchPolicy: 'network-only',
   });
 
@@ -198,12 +198,13 @@ const ProfilePage = () => {
   const [removeFriend] = useMutation(REMOVE_FRIEND_MUTATION);
   const [resetPassword] = useMutation(RESET_PASSWORD_MUTATION);
 
-  const profile = isOwnProfile ? meData?.me : userData?.user;
   const loading = isOwnProfile ? meLoading : userLoading;
   const error = isOwnProfile ? meError : userError;
 
   // Check friend status
   const friends = friendsData?.friends || [];
+  const profile = isOwnProfile ? meData?.me : userData?.userByUsername;
+  const profileUserId = profile?.id;
   const isFriend = friends.some((f: User) => f.id === profileUserId);
   const sentRequests = sentRequestsData?.sentFriendRequests || [];
   const hasPendingRequest = sentRequests.some(
@@ -530,20 +531,7 @@ const ProfilePage = () => {
           onSuccess={(message) => showSnackbar(message, 'info')}
         />
       ) : (
-        <>
-          <ProfileView profile={profile} />
-          {/* Friends Section for non-own profile */}
-          <FriendsSection
-            isOwnProfile={false}
-            friends={friends}
-            pendingRequests={[]}
-            sentRequests={[]}
-            friendsTabValue={0}
-            onTabChange={() => {}}
-            onRespondRequest={async () => {}}
-            accessToken={accessToken}
-          />
-        </>
+        <ProfileView profile={profile} />
       )}
 
       {/* Avatar View Dialog */}
@@ -837,19 +825,34 @@ const ProfileHeader = ({
 
       {!isOwnProfile && (
         <Box sx={{ mt: 2, display: 'flex', gap: 2, justifyContent: 'center' }}>
-          <Button
-            variant={isFriend ? 'outlined' : 'contained'}
-            color={isFriend ? 'error' : 'primary'}
-            startIcon={isFriend ? <PersonRemoveIcon /> : <PersonAddIcon />}
-            onClick={onFriendAction}
-            disabled={hasPendingRequest}
-          >
-            {isFriend
-              ? 'Remove Friend'
-              : hasPendingRequest
-              ? 'Request Sent'
-              : 'Add Friend'}
-          </Button>
+          {hasPendingRequest ? (
+            <Button
+              variant="outlined"
+              color="primary"
+              startIcon={<PersonAddIcon />}
+              disabled
+            >
+              Pending Request
+            </Button>
+          ) : isFriend ? (
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<PersonRemoveIcon />}
+              onClick={onFriendAction}
+            >
+              Remove Friend
+            </Button>
+          ) : (
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<AddIcon />}
+              onClick={onFriendAction}
+            >
+              Add Friend
+            </Button>
+          )}
           {isFriend && (
             <Button
               variant="contained"
@@ -1801,6 +1804,7 @@ const FriendsSection = ({
   onRespondRequest,
   accessToken,
 }: FriendsSectionProps) => {
+  const navigate = useNavigate();
   const [friendAvatars, setFriendAvatars] = useState<Record<string, string>>(
     {},
   );
@@ -1883,14 +1887,19 @@ const FriendsSection = ({
             {friends.map((friend) => (
               <Grid size={{ xs: 6, sm: 4, md: 3 }} key={friend.id}>
                 <Paper
+                  onClick={() => {
+                    if (friend.username) {
+                      navigate(`/profile/${friend.username}`);
+                    }
+                  }}
                   sx={{
-                    cursor: 'pointer',
+                    cursor: friend.username ? 'pointer' : 'default',
                     border: '2px solid',
                     borderColor: 'divider',
                     p: 2,
                     textAlign: 'center',
                     '&:hover': {
-                      bgcolor: 'action.hover',
+                      bgcolor: friend.username ? 'action.hover' : 'transparent',
                     },
                   }}
                 >

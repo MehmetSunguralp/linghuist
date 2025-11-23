@@ -29,6 +29,15 @@ export class UserResolver {
   }
 
   @Query(() => User, { nullable: true })
+  async userByUsername(
+    @Args('username') username: string,
+    @Context('userId') userId: string,
+  ) {
+    if (!userId) throw new Error('Unauthorized');
+    return this.userService.getUserByUsername(username);
+  }
+
+  @Query(() => User, { nullable: true })
   async me(@Context('userId') userId: string) {
     if (!userId) throw new Error('Unauthorized');
     return this.userService.getUserById(userId);
