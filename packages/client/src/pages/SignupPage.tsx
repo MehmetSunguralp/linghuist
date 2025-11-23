@@ -94,7 +94,7 @@ const SignupPage = () => {
       {/* Left side - Background Image */}
       <Box
         sx={{
-          width: '66.67%',
+          width: '50%',
           height: '100%',
           maxHeight: '100dvh',
           backgroundImage: `url(${backgroundImageUrl})`,
@@ -102,13 +102,14 @@ const SignupPage = () => {
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
           overflow: 'hidden',
+          display: { xs: 'none', md: 'block' },
         }}
       />
 
       {/* Right side - Signup Form */}
       <Box
         sx={{
-          width: '33.33%',
+          width: { xs: '100%', md: '50%' },
           height: '100%',
           maxHeight: '100dvh',
           display: 'flex',

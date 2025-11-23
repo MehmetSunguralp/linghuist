@@ -1884,6 +1884,9 @@ const FriendsSection = ({
               <Grid size={{ xs: 6, sm: 4, md: 3 }} key={friend.id}>
                 <Paper
                   sx={{
+                    cursor: 'pointer',
+                    border: '2px solid',
+                    borderColor: 'divider',
                     p: 2,
                     textAlign: 'center',
                     '&:hover': {

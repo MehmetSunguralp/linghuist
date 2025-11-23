@@ -126,140 +126,147 @@ const LoginPage = () => {
     'https://evsxpvgpnhdfgalkodpg.supabase.co/storage/v1/object/public/publicAssets/bg_img.png';
 
   return (
-    <Box
-      sx={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        height: '100dvh',
-        maxHeight: '100dvh',
-        display: 'flex',
-        overflow: 'hidden',
-        zIndex: 1000,
-      }}
-    >
-      {/* Left side - Background Image */}
+    <>
       <Box
         sx={{
-          width: '66.67%',
-          height: '100%',
-          maxHeight: '100dvh',
-          backgroundImage: `url(${backgroundImageUrl})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
-          overflow: 'hidden',
-        }}
-      />
-
-      {/* Right side - Login Form */}
-      <Box
-        sx={{
-          width: '33.33%',
-          height: '100%',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: '100dvh',
           maxHeight: '100dvh',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          p: 4,
-          overflow: 'auto',
+          overflow: 'hidden',
+          zIndex: 1000,
         }}
       >
-        <Box sx={{ width: '100%', maxWidth: '400px' }}>
-          <Typography
-            variant="h2"
-            fontWeight={700}
-            component="h2"
-            gutterBottom
-            align="center"
-          >
-            Welcome Back!
-          </Typography>
+        {/* Left side - Background Image */}
+        <Box
+          sx={{
+            width: '50%',
+            height: '100%',
+            maxHeight: '100dvh',
+            backgroundImage: `url(${backgroundImageUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            overflow: 'hidden',
+            display: { xs: 'none', md: 'block' },
+          }}
+        />
 
-          <Typography variant="h4" component="h1" gutterBottom align="center">
-            Log into Your Account
-          </Typography>
+        {/* Right side - Login Form */}
+        <Box
+          sx={{
+            width: { xs: '100%', md: '50%' },
+            height: '100%',
+            maxHeight: '100dvh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            p: 4,
+            overflow: 'auto',
+          }}
+        >
+          <Box sx={{ width: '100%', maxWidth: '400px' }}>
+            <Typography
+              variant="h2"
+              fontWeight={700}
+              component="h2"
+              gutterBottom
+              align="center"
+            >
+              Welcome Back!
+            </Typography>
 
-          <Typography
-            variant="subtitle2"
-            component={'h3'}
-            gutterBottom
-            align="center"
-            fontWeight={300}
-          >
-            Keep practicing language skills and making new connections!
-          </Typography>
+            <Typography variant="h4" component="h1" gutterBottom align="center">
+              Log into Your Account
+            </Typography>
 
-          <Formik
-            initialValues={{
-              email: '',
-              password: '',
-            }}
-            validationSchema={validationSchema}
-            onSubmit={handleSubmit}
-          >
-            {({ errors, touched }) => (
-              <Form>
-                <Box
-                  sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 2,
-                    mt: 3,
-                  }}
-                >
-                  <Field
-                    as={TextField}
-                    name="email"
-                    label="Email"
-                    type="email"
-                    fullWidth
-                    error={touched.email && !!errors.email}
-                    helperText={touched.email && errors.email}
-                    variant="outlined"
-                  />
+            <Typography
+              variant="subtitle2"
+              component={'h3'}
+              gutterBottom
+              align="center"
+              fontWeight={300}
+            >
+              Keep practicing language skills and making new connections!
+            </Typography>
 
-                  <Field
-                    as={TextField}
-                    name="password"
-                    label="Password"
-                    type="password"
-                    fullWidth
-                    error={touched.password && !!errors.password}
-                    helperText={touched.password && errors.password}
-                    variant="outlined"
-                  />
-
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    color="primary"
-                    fullWidth
-                    size="large"
-                    disabled={loading}
-                    sx={{ mt: 2 }}
+            <Formik
+              initialValues={{
+                email: '',
+                password: '',
+              }}
+              validationSchema={validationSchema}
+              onSubmit={handleSubmit}
+            >
+              {({ errors, touched }) => (
+                <Form>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 2,
+                      mt: 3,
+                    }}
                   >
-                    {loading ? <CircularProgress size={24} /> : 'Login'}
-                  </Button>
-                </Box>
-              </Form>
-            )}
-          </Formik>
+                    <Field
+                      as={TextField}
+                      name="email"
+                      label="Email"
+                      type="email"
+                      fullWidth
+                      error={touched.email && !!errors.email}
+                      helperText={touched.email && errors.email}
+                      variant="outlined"
+                    />
 
-          <Box sx={{ mt: 4, textAlign: 'center' }}>
-            <Typography variant="body2">
-              Don't have an account?{' '}
-              <Link component={RouterLink} to="/signup" color="primary">
-                Sign up
-              </Link>
-            </Typography>
-            <Typography variant="body2" sx={{ mt: 1 }}>
-              <Link component={RouterLink} to="/reset-password" color="primary">
-                Forgot your password?
-              </Link>
-            </Typography>
+                    <Field
+                      as={TextField}
+                      name="password"
+                      label="Password"
+                      type="password"
+                      fullWidth
+                      error={touched.password && !!errors.password}
+                      helperText={touched.password && errors.password}
+                      variant="outlined"
+                    />
+
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      color="primary"
+                      fullWidth
+                      size="large"
+                      disabled={loading}
+                      sx={{ mt: 2 }}
+                    >
+                      {loading ? <CircularProgress size={24} /> : 'Login'}
+                    </Button>
+                  </Box>
+                </Form>
+              )}
+            </Formik>
+
+            <Box sx={{ mt: 4, textAlign: 'center' }}>
+              <Typography variant="body2">
+                Don't have an account?{' '}
+                <Link component={RouterLink} to="/signup" color="primary">
+                  Sign up
+                </Link>
+              </Typography>
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                <Link
+                  component={RouterLink}
+                  to="/reset-password"
+                  color="primary"
+                >
+                  Forgot your password?
+                </Link>
+              </Typography>
+            </Box>
           </Box>
         </Box>
       </Box>
@@ -269,6 +276,7 @@ const LoginPage = () => {
         autoHideDuration={6000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ zIndex: 1500 }}
       >
         <Alert
           onClose={() => setSnackbar({ ...snackbar, open: false })}
@@ -279,7 +287,7 @@ const LoginPage = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Box>
+    </>
   );
 };
 
