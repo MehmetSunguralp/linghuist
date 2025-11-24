@@ -171,7 +171,7 @@ const ProfilePage = () => {
   const { data: sentRequestsData, refetch: refetchSentRequests } = useQuery(
     SENT_FRIEND_REQUESTS_QUERY,
     {
-      skip: !currentUser || isOwnProfile,
+      skip: !currentUser,
       fetchPolicy: 'cache-first',
     },
   );
@@ -1618,19 +1618,22 @@ const FriendsSection = ({
     const fetchFriendAvatars = async () => {
       if (!accessToken) return;
 
-      // Collect all users that need avatars (friends + pending request senders)
+      // Collect all users that need avatars (friends + pending request senders + sent request receivers)
       const allUsers = [
         ...friends,
         ...pendingRequests.map((req: any) => req.sender).filter(Boolean),
+        ...sentRequests.map((req: any) => req.receiver).filter(Boolean),
       ];
 
       const avatarPromises = allUsers.map(async (user) => {
-        // Prefer thumbnail if available, fallback to full avatar
-        const imagePath = user.userThumbnailUrl || user.avatarUrl;
-        if (!imagePath) return null;
+        // Always prefer thumbnail if available, fallback to full avatar
+        const hasThumbnail =
+          user.userThumbnailUrl && user.userThumbnailUrl.trim() !== '';
+        const imagePath = hasThumbnail ? user.userThumbnailUrl : user.avatarUrl;
+        if (!imagePath || imagePath.trim() === '') return null;
 
         try {
-          const bucket = user.userThumbnailUrl ? 'userThumbnails' : 'avatars';
+          const bucket = hasThumbnail ? 'userThumbnails' : 'avatars';
           const url = await getSupabaseStorageUrl(
             imagePath,
             bucket,
@@ -1655,10 +1658,14 @@ const FriendsSection = ({
       setLoadedFriendAvatars({});
     };
 
-    if (friends.length > 0 || pendingRequests.length > 0) {
+    if (
+      friends.length > 0 ||
+      pendingRequests.length > 0 ||
+      sentRequests.length > 0
+    ) {
       fetchFriendAvatars();
     }
-  }, [friends, pendingRequests, accessToken]);
+  }, [friends, pendingRequests, sentRequests, accessToken]);
   return (
     <Paper
       sx={{
@@ -1786,21 +1793,107 @@ const FriendsSection = ({
             </Typography>
           ) : (
             <Grid container spacing={2}>
-              {sentRequests.map((request) => (
-                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={request.id}>
-                  <Paper sx={{ p: 2 }}>
-                    <Typography variant="body2" gutterBottom>
-                      {request.receiver?.username || request.receiver?.email}
-                    </Typography>
-                    <Chip
-                      label="Pending"
-                      size="small"
-                      color="warning"
-                      sx={{ mt: 1 }}
-                    />
-                  </Paper>
-                </Grid>
-              ))}
+              {sentRequests.map((request) => {
+                const receiver = request.receiver;
+                const receiverAvatar = receiver?.id
+                  ? friendAvatars[receiver.id]
+                  : null;
+                const receiverAvatarLoaded = receiver?.id
+                  ? loadedFriendAvatars[receiver.id]
+                  : false;
+                return (
+                  <Grid size={{ xs: 12, sm: 6, md: 4 }} key={request.id}>
+                    <Paper
+                      sx={{
+                        p: 2,
+                        cursor: receiver?.username ? 'pointer' : 'default',
+                        '&:hover': receiver?.username
+                          ? {
+                              boxShadow: 4,
+                              transform: 'translateY(-2px)',
+                              transition: 'all 0.2s',
+                            }
+                          : {},
+                      }}
+                      onClick={() => {
+                        if (receiver?.username) {
+                          navigate(`/profile/${receiver.username}`);
+                        }
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 2,
+                          mb: 1,
+                        }}
+                      >
+                        <Box sx={{ position: 'relative' }}>
+                          <Avatar
+                            src={receiverAvatar || undefined}
+                            sx={{
+                              width: { xs: 40, sm: 48 },
+                              height: { xs: 40, sm: 48 },
+                              bgcolor: 'primary.main',
+                              opacity:
+                                receiverAvatar && !receiverAvatarLoaded ? 0 : 1,
+                              transition: 'opacity 0.3s ease-in-out',
+                            }}
+                            slotProps={{
+                              img: {
+                                onLoad: () => {
+                                  if (receiverAvatar && receiver?.id) {
+                                    setLoadedFriendAvatars((prev) => ({
+                                      ...prev,
+                                      [receiver.id]: true,
+                                    }));
+                                  }
+                                },
+                              },
+                            }}
+                          >
+                            {(receiver?.username || receiver?.email || 'U')
+                              .charAt(0)
+                              .toUpperCase()}
+                          </Avatar>
+                          {receiver?.country && (
+                            <Box
+                              sx={{
+                                position: 'absolute',
+                                bottom: 0,
+                                right: 0,
+                                width: 16,
+                                height: 16,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                overflow: 'hidden',
+                              }}
+                            >
+                              <FlagIcon
+                                countryCode={receiver.country}
+                                size={14}
+                              />
+                            </Box>
+                          )}
+                        </Box>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography variant="body2" noWrap>
+                            {receiver?.username || receiver?.email}
+                          </Typography>
+                        </Box>
+                      </Box>
+                      <Chip
+                        label="Pending"
+                        size="small"
+                        color="warning"
+                        sx={{ mt: 1 }}
+                      />
+                    </Paper>
+                  </Grid>
+                );
+              })}
             </Grid>
           )}
         </TabPanel>
