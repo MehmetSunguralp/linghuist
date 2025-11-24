@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@apollo/client';
-import { Formik, Form, Field } from 'formik';
+import { Formik, Form } from 'formik';
 import * as Yup from 'yup';
 import {
   Container,
@@ -26,24 +26,14 @@ import {
   Tab,
   Chip,
   Snackbar,
-  Select,
-  FormControl,
-  InputLabel,
-  ListItemText,
-  OutlinedInput,
 } from '@mui/material';
 import {
-  Edit as EditIcon,
-  Delete as DeleteIcon,
   Add as AddIcon,
   Close as CloseIcon,
   PersonAdd as PersonAddIcon,
   PersonRemove as PersonRemoveIcon,
   Chat as ChatIcon,
-  InfoOutline as InfoOutlineIcon,
   People as PeopleIcon,
-  RecordVoiceOver as RecordVoiceOverIcon,
-  Translate as TranslateIcon,
   ReportGmailerrorred as ReportGmailerrorredIcon,
   Visibility as VisibilityIcon,
   PhotoCamera as PhotoCameraIcon,
@@ -73,32 +63,26 @@ import {
   getSupabaseStorageUrl,
   uploadImage,
   deleteImage,
+  clearSupabaseStorageCache,
 } from '@/utils/supabaseStorage';
 import { clearSupabaseClientCache } from '@/lib/supabaseClient';
-import { clearSupabaseStorageCache } from '@/utils/supabaseStorage';
-import {
-  LANGUAGES,
-  LANGUAGE_LEVELS,
-  getLanguageCode,
-  languageToCountryCode,
-} from '@/utils/languages';
-import type { User, Language } from '@/types';
+import { getLanguageCode, languageToCountryCode } from '@/utils/languages';
+import type { User } from '@/types';
 import FlagIcon from '@/components/FlagIcon';
+import {
+  BasicInformationSection,
+  LanguageSection,
+  type LanguageInput,
+} from '@/components/profile';
 import imageCompression from 'browser-image-compression';
 import { Cropper } from 'react-advanced-cropper';
 import type { CropperRef } from 'react-advanced-cropper';
 import 'react-advanced-cropper/dist/style.css';
 
-interface LanguageInput {
-  name: string;
-  level: string;
-  code: string;
-}
-
 interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
+  readonly children?: React.ReactNode;
+  readonly index: number;
+  readonly value: number;
 }
 
 function TabPanel(props: TabPanelProps) {
@@ -117,7 +101,6 @@ function TabPanel(props: TabPanelProps) {
 }
 
 const ProfilePage = () => {
-  // const navigate = useNavigate();
   const { username } = useParams<{ username?: string }>();
   const dispatch = useAppDispatch();
   const { user: currentUser, accessToken } = useAppSelector(
@@ -194,11 +177,10 @@ const ProfilePage = () => {
   );
 
   // Mutations
-  const [updateMe, { loading: updating }] = useMutation(UPDATE_ME_MUTATION);
+  const [updateMe] = useMutation(UPDATE_ME_MUTATION);
   const [sendFriendRequest] = useMutation(SEND_FRIEND_REQUEST_MUTATION);
   const [respondFriendRequest] = useMutation(RESPOND_FRIEND_REQUEST_MUTATION);
   const [removeFriend] = useMutation(REMOVE_FRIEND_MUTATION);
-  const [resetPassword] = useMutation(RESET_PASSWORD_MUTATION);
 
   const loading = isOwnProfile ? meLoading : userLoading;
   const error = isOwnProfile ? meError : userError;
@@ -214,11 +196,12 @@ const ProfilePage = () => {
   );
   const pendingRequests = pendingRequestsData?.pendingFriendRequests || [];
   const hasReceivedRequest =
-    !isOwnProfile &&
+    isOwnProfile === false &&
     pendingRequests.some((req: any) => req.sender?.id === profileUserId);
-  const receivedRequestFromProfile = !isOwnProfile
-    ? pendingRequests.find((req: any) => req.sender?.id === profileUserId)
-    : null;
+  const receivedRequestFromProfile =
+    isOwnProfile === false
+      ? pendingRequests.find((req: any) => req.sender?.id === profileUserId)
+      : null;
 
   // Fetch and set avatar URL
   useEffect(() => {
@@ -582,9 +565,11 @@ const ProfilePage = () => {
         onClose={() => setAvatarViewDialogOpen(false)}
         maxWidth="md"
         fullWidth
-        PaperProps={{
-          sx: {
-            maxWidth: 'fit-content',
+        slotProps={{
+          paper: {
+            sx: {
+              maxWidth: 'fit-content',
+            },
           },
         }}
       >
@@ -633,11 +618,7 @@ const ProfilePage = () => {
         onClose={handleCropCancel}
         maxWidth="md"
         fullWidth
-        PaperProps={{
-          sx: {
-            bgcolor: 'background.paper',
-          },
-        }}
+        sx={{ '& .MuiPaper-root': { maxWidth: 'fit-content' } }}
       >
         <DialogTitle>Crop Avatar Image</DialogTitle>
         <DialogContent
@@ -790,37 +771,50 @@ const ProfileHeader = ({
             cursor: !isOwnProfile && avatarUrlSigned ? 'pointer' : 'default',
           }}
         >
-          {uploadingAvatar ? (
-            <CircularProgress />
-          ) : avatarUrlSigned ? (
-            <Avatar
-              src={avatarUrlSigned}
-              alt={profile.username || profile.email}
-              sx={{
-                width: '100%',
-                height: '100%',
-                fontSize: { xs: '2rem', sm: '3rem', md: '4rem', lg: '5rem' },
-                opacity: !profileAvatarLoaded ? 0 : 1,
-                transition: 'opacity 0.3s ease-in-out',
-              }}
-              imgProps={{
-                onLoad: onAvatarLoad,
-              }}
-            />
-          ) : (
-            <Avatar
-              sx={{
-                width: '100%',
-                height: '100%',
-                fontSize: { xs: '3rem', sm: '4rem', md: '5rem' },
-                bgcolor: 'primary.main',
-              }}
-            >
-              {(profile.username || profile.email || 'U')
-                .charAt(0)
-                .toUpperCase()}
-            </Avatar>
-          )}
+          {(() => {
+            if (uploadingAvatar) {
+              return <CircularProgress />;
+            }
+            if (avatarUrlSigned) {
+              return (
+                <Avatar
+                  src={avatarUrlSigned}
+                  alt={profile.username || profile.email}
+                  sx={{
+                    width: '100%',
+                    height: '100%',
+                    fontSize: {
+                      xs: '2rem',
+                      sm: '3rem',
+                      md: '4rem',
+                      lg: '5rem',
+                    },
+                    opacity: profileAvatarLoaded ? 1 : 0,
+                    transition: 'opacity 0.3s ease-in-out',
+                  }}
+                  slotProps={{
+                    img: {
+                      onLoad: onAvatarLoad,
+                    },
+                  }}
+                />
+              );
+            }
+            return (
+              <Avatar
+                sx={{
+                  width: '100%',
+                  height: '100%',
+                  fontSize: { xs: '3rem', sm: '4rem', md: '5rem' },
+                  bgcolor: 'primary.main',
+                }}
+              >
+                {(profile.username || profile.email || 'U')
+                  .charAt(0)
+                  .toUpperCase()}
+              </Avatar>
+            );
+          })()}
         </IconButton>
         {isOwnProfile && (
           <Menu
@@ -898,62 +892,72 @@ const ProfileHeader = ({
             flexWrap: 'wrap',
           }}
         >
-          {hasReceivedRequest && receivedRequestFromProfile ? (
-            <>
+          {(() => {
+            if (hasReceivedRequest && receivedRequestFromProfile) {
+              return (
+                <>
+                  <Button
+                    variant="contained"
+                    startIcon={<CheckIcon />}
+                    onClick={() =>
+                      onRespondRequest?.(receivedRequestFromProfile.id, true)
+                    }
+                  >
+                    Accept
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<CancelIcon />}
+                    onClick={() =>
+                      onRespondRequest?.(receivedRequestFromProfile.id, false)
+                    }
+                  >
+                    Reject
+                  </Button>
+                </>
+              );
+            }
+            if (hasPendingRequest) {
+              return (
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  startIcon={<PersonAddIcon />}
+                  disabled
+                >
+                  Pending Request
+                </Button>
+              );
+            }
+            if (isFriend) {
+              return (
+                <Button
+                  variant="outlined"
+                  color="error"
+                  startIcon={<PersonRemoveIcon />}
+                  onClick={onFriendAction}
+                >
+                  Remove Friend
+                </Button>
+              );
+            }
+            return (
               <Button
                 variant="contained"
-                startIcon={<CheckIcon />}
-                onClick={() =>
-                  onRespondRequest?.(receivedRequestFromProfile.id, true)
-                }
+                color="primary"
+                startIcon={<AddIcon />}
+                onClick={onFriendAction}
               >
-                Accept
+                Add Friend
               </Button>
-              <Button
-                variant="outlined"
-                startIcon={<CancelIcon />}
-                onClick={() =>
-                  onRespondRequest?.(receivedRequestFromProfile.id, false)
-                }
-              >
-                Reject
-              </Button>
-            </>
-          ) : hasPendingRequest ? (
-            <Button
-              variant="outlined"
-              color="primary"
-              startIcon={<PersonAddIcon />}
-              disabled
-            >
-              Pending Request
-            </Button>
-          ) : isFriend ? (
-            <Button
-              variant="outlined"
-              color="error"
-              startIcon={<PersonRemoveIcon />}
-              onClick={onFriendAction}
-            >
-              Remove Friend
-            </Button>
-          ) : (
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<AddIcon />}
-              onClick={onFriendAction}
-            >
-              Add Friend
-            </Button>
-          )}
+            );
+          })()}
           {isFriend && (
             <Button
               variant="contained"
               color="primary"
               startIcon={<ChatIcon />}
               onClick={() => {
-                // TODO: Implement chat
                 alert('Chat feature coming soon');
               }}
             >
@@ -1008,7 +1012,7 @@ const ProfileEditForm = ({
     username: Yup.string()
       .min(3, 'Username must be at least 3 characters')
       .matches(
-        /^[a-zA-Z0-9_]+$/,
+        /^\w+$/,
         'Username can only contain letters, numbers, and underscores',
       )
       .required('Username is required'),
@@ -1021,17 +1025,17 @@ const ProfileEditForm = ({
       .test('is-positive-number', 'Age must be a positive number', (value) => {
         if (!value) return false;
         const num = Number(value);
-        return !isNaN(num) && num > 0;
+        return !Number.isNaN(num) && num > 0;
       })
       .test('min-age', 'Age must be larger than 16', (value) => {
         if (!value) return false;
         const num = Number(value);
-        return !isNaN(num) && num > 16;
+        return !Number.isNaN(num) && num > 16;
       })
       .test('max-age', 'Age must be 99 or less', (value) => {
         if (!value) return false;
         const num = Number(value);
-        return !isNaN(num) && num <= 99;
+        return !Number.isNaN(num) && num <= 99;
       }),
   });
 
@@ -1119,16 +1123,18 @@ const ProfileEditForm = ({
       }
 
       // Check conflicts
-      const nativeFluentKnown = values.languagesKnown
-        .filter(
-          (lang: LanguageInput) =>
-            lang.name.trim() !== '' &&
-            (lang.level === 'Native' || lang.level === 'Fluent'),
-        )
-        .map((lang: LanguageInput) => lang.name);
+      const nativeFluentKnown = new Set(
+        values.languagesKnown
+          .filter(
+            (lang: LanguageInput) =>
+              lang.name.trim() !== '' &&
+              (lang.level === 'Native' || lang.level === 'Fluent'),
+          )
+          .map((lang: LanguageInput) => lang.name),
+      );
       const conflictingLearn = values.languagesLearn.some(
         (lang: LanguageInput) =>
-          lang.name.trim() !== '' && nativeFluentKnown.includes(lang.name),
+          lang.name.trim() !== '' && nativeFluentKnown.has(lang.name),
       );
 
       if (conflictingLearn) {
@@ -1169,199 +1175,9 @@ const ProfileEditForm = ({
       onSubmit={handleSubmit}
       enableReinitialize
     >
-      {({ values, errors, touched, setFieldValue, isSubmitting }) => (
+      {({ values, setFieldValue, isSubmitting }) => (
         <Form>
-          <Paper sx={{ p: 4, mb: 4 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-              <InfoOutlineIcon color="primary" />
-              <Typography variant="h5">Basic Information</Typography>
-            </Box>
-            <Box
-              sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}
-            >
-              <Box sx={{ position: 'relative' }}>
-                <Field
-                  as={TextField}
-                  name="name"
-                  label="Name"
-                  placeholder="Your full name (Only visible to you)"
-                  fullWidth
-                  error={touched.name && !!errors.name}
-                  helperText={touched.name && errors.name}
-                />
-                <EditIcon
-                  sx={{
-                    position: 'absolute',
-                    right: 12,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    fontSize: 18,
-                    color: 'action.active',
-                    pointerEvents: 'none',
-                  }}
-                />
-              </Box>
-
-              <Box sx={{ position: 'relative' }}>
-                <Field
-                  as={TextField}
-                  name="username"
-                  label="Username"
-                  placeholder="Set a unique username"
-                  fullWidth
-                  error={touched.username && !!errors.username}
-                  helperText={touched.username && errors.username}
-                />
-                <EditIcon
-                  sx={{
-                    position: 'absolute',
-                    right: 12,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    fontSize: 18,
-                    color: 'action.active',
-                    pointerEvents: 'none',
-                  }}
-                />
-              </Box>
-
-              <Box sx={{ position: 'relative' }}>
-                <Field
-                  as={TextField}
-                  name="bio"
-                  label="Bio"
-                  placeholder="Tell us about yourself..."
-                  fullWidth
-                  multiline
-                  rows={4}
-                  error={touched.bio && !!errors.bio}
-                  helperText={touched.bio && errors.bio}
-                />
-                <EditIcon
-                  sx={{
-                    position: 'absolute',
-                    right: 12,
-                    top: 24,
-                    fontSize: 18,
-                    color: 'action.active',
-                    pointerEvents: 'none',
-                  }}
-                />
-              </Box>
-
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <FormControl
-                  fullWidth
-                  error={touched.country && !!errors.country}
-                >
-                  <InputLabel>Country</InputLabel>
-                  <Field
-                    as={Select}
-                    name="country"
-                    label="Country"
-                    input={<OutlinedInput label="Country" />}
-                  >
-                    {[
-                      'TR',
-                      'DE',
-                      'US',
-                      'GB',
-                      'CA',
-                      'FR',
-                      'ES',
-                      'PT',
-                      'IT',
-                      'NL',
-                      'BE',
-                      'SE',
-                      'NO',
-                      'DK',
-                      'FI',
-                      'PL',
-                      'CZ',
-                      'SK',
-                      'SI',
-                      'RO',
-                      'HU',
-                      'GR',
-                      'UA',
-                      'RU',
-                      'IN',
-                      'JP',
-                      'CN',
-                      'KR',
-                      'BR',
-                      'AR',
-                      'MX',
-                      'AU',
-                      'NZ',
-                      'IE',
-                      'IL',
-                      'SA',
-                      'AE',
-                      'ZA',
-                      'EG',
-                      'PK',
-                      'BD',
-                      'VN',
-                      'TH',
-                      'ID',
-                      'MY',
-                      'PH',
-                    ].map((code) => (
-                      <MenuItem key={code} value={code}>
-                        <Box
-                          sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
-                        >
-                          <FlagIcon countryCode={code} size={16} />
-                          <Typography>
-                            {typeof window !== 'undefined'
-                              ? new Intl.DisplayNames(['en'], {
-                                  type: 'region',
-                                }).of(code)
-                              : code}
-                          </Typography>
-                        </Box>
-                      </MenuItem>
-                    ))}
-                  </Field>
-                </FormControl>
-
-                <Box sx={{ position: 'relative', width: 200 }}>
-                  <Field name="age">
-                    {({ field, meta }: any) => (
-                      <TextField
-                        {...field}
-                        label="Age"
-                        type="text"
-                        fullWidth
-                        error={meta.touched && !!meta.error}
-                        helperText={meta.touched && meta.error}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                          const value = e.target.value;
-                          // Only allow digits
-                          if (value === '' || /^\d+$/.test(value)) {
-                            setFieldValue('age', value);
-                          }
-                        }}
-                      />
-                    )}
-                  </Field>
-                  <EditIcon
-                    sx={{
-                      position: 'absolute',
-                      right: 12,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      fontSize: 18,
-                      color: 'action.active',
-                      pointerEvents: 'none',
-                    }}
-                  />
-                </Box>
-              </Box>
-            </Box>
-          </Paper>
+          <BasicInformationSection />
 
           {/* Friends Section */}
           <FriendsSection
@@ -1644,222 +1460,6 @@ const ProfileEditForm = ({
   );
 };
 
-// Language Section Component
-interface LanguageSectionProps {
-  title: string;
-  languages: LanguageInput[];
-  onAdd: () => void;
-  onRemove: (index: number) => void;
-  onUpdate: (index: number, key: keyof LanguageInput, value: string) => void;
-  excludedLanguages: string[];
-  allowNative: boolean;
-}
-
-const LanguageSection = ({
-  title,
-  languages,
-  onAdd,
-  onRemove,
-  onUpdate,
-  excludedLanguages,
-  allowNative,
-}: LanguageSectionProps) => {
-  const getAvailableLanguages = (currentIndex: number) => {
-    const selectedLanguages = languages
-      .map((lang, idx) => (idx !== currentIndex ? lang.name : ''))
-      .filter((name) => name.trim() !== '');
-    return LANGUAGES.filter(
-      (lang) =>
-        !selectedLanguages.includes(lang.name) &&
-        !excludedLanguages.includes(lang.name),
-    );
-  };
-
-  return (
-    <Paper sx={{ p: 4, mb: 4 }}>
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          mb: 2,
-          flexDirection: { xs: 'column', sm: 'row' },
-          gap: { xs: 1, sm: 2 },
-        }}
-      >
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
-          }}
-        >
-          {title === 'Languages I Know' ? (
-            <RecordVoiceOverIcon color="primary" />
-          ) : (
-            <TranslateIcon color="primary" />
-          )}
-          <Typography
-            variant="h5"
-            fontSize={{
-              xs: '1rem',
-              sm: '1.2rem',
-              md: '1.5rem',
-              lg: '2rem',
-            }}
-          >
-            {title}
-          </Typography>
-        </Box>
-      </Box>
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: { xs: 1.5, sm: 2 },
-        }}
-      >
-        {languages.map((lang, index) => (
-          <Box
-            key={lang.code}
-            sx={{
-              display: 'flex',
-              gap: { xs: 0.5, sm: 1, md: 2 },
-              alignItems: 'center',
-              flexWrap: 'nowrap',
-            }}
-          >
-            <FormControl
-              size="small"
-              sx={{
-                flex: 1,
-                minWidth: { xs: 100, sm: 150 },
-                '& .MuiInputLabel-root': {
-                  fontSize: { xs: '0.875rem', sm: '0.875rem', md: '1rem' },
-                },
-                '& .MuiSelect-select': {
-                  fontSize: { xs: '0.875rem', sm: '0.875rem', md: '1rem' },
-                  display: 'flex',
-                  alignItems: 'center',
-                },
-              }}
-            >
-              <InputLabel size="small">Language</InputLabel>
-              <Select
-                size="small"
-                value={lang.name}
-                onChange={(e) => onUpdate(index, 'name', e.target.value)}
-                input={<OutlinedInput label="Language" />}
-                MenuProps={{
-                  PaperProps: {
-                    sx: {
-                      maxHeight: { xs: 300, sm: 400 },
-                      '& .MuiMenuItem-root': {
-                        fontSize: { xs: '0.875rem', sm: '1rem' },
-                        py: { xs: 0.5, sm: 1 },
-                      },
-                    },
-                  },
-                }}
-              >
-                {getAvailableLanguages(index).map((language) => (
-                  <MenuItem key={language.code} value={language.name}>
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: { xs: 0.5, sm: 1 },
-                      }}
-                    >
-                      <FlagIcon
-                        countryCode={languageToCountryCode(language.code)}
-                        size={14}
-                      />
-                      <Typography
-                        sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
-                      >
-                        {language.name}
-                      </Typography>
-                    </Box>
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl
-              size="small"
-              sx={{
-                width: { xs: 100, sm: 130, md: 160 },
-                flexShrink: 0,
-                '& .MuiInputLabel-root': {
-                  fontSize: { xs: '0.875rem', sm: '0.875rem', md: '1rem' },
-                },
-                '& .MuiSelect-select': {
-                  fontSize: { xs: '0.875rem', sm: '0.875rem', md: '1rem' },
-                  display: 'flex',
-                  alignItems: 'center',
-                },
-              }}
-            >
-              <InputLabel size="small">Level</InputLabel>
-              <Select
-                size="small"
-                value={lang.level}
-                onChange={(e) => onUpdate(index, 'level', e.target.value)}
-                input={<OutlinedInput label="Level" />}
-                MenuProps={{
-                  PaperProps: {
-                    sx: {
-                      maxHeight: { xs: 300, sm: 400 },
-                      '& .MuiMenuItem-root': {
-                        fontSize: { xs: '0.875rem', sm: '1rem' },
-                        py: { xs: 0.5, sm: 1 },
-                      },
-                    },
-                  },
-                }}
-              >
-                {LANGUAGE_LEVELS.filter(
-                  (level) => allowNative || level.value !== 'Native',
-                ).map((level) => (
-                  <MenuItem key={level.value} value={level.value}>
-                    <Typography
-                      sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
-                    >
-                      {level.label}
-                    </Typography>
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <IconButton
-              color="error"
-              onClick={() => onRemove(index)}
-              disabled={languages.length === 1}
-              size="small"
-              sx={{
-                flexShrink: 0,
-                width: { xs: 16, sm: 36, md: 40 },
-                height: { xs: 16, sm: 36, md: 40 },
-                minWidth: { xs: 16, sm: 36, md: 40 },
-              }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Box>
-        ))}
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<AddIcon />}
-          onClick={onAdd}
-        >
-          Add Language
-        </Button>
-      </Box>
-    </Paper>
-  );
-};
-
 // Profile View Component (read-only)
 interface ProfileViewProps {
   profile: User;
@@ -1898,13 +1498,19 @@ const ProfileView = ({ profile }: ProfileViewProps) => {
                 <FlagIcon countryCode={profile.country} size={18} />
               )}
               <Typography variant="body1">
-                {profile.country
-                  ? typeof window !== 'undefined'
-                    ? new Intl.DisplayNames(['en'], { type: 'region' }).of(
-                        profile.country.toUpperCase(),
-                      )
-                    : profile.country
-                  : 'Not provided'}
+                {(() => {
+                  if (!profile.country) {
+                    return 'Not provided';
+                  }
+                  if (globalThis.window === undefined) {
+                    return profile.country;
+                  }
+                  return (
+                    new Intl.DisplayNames(['en'], { type: 'region' }).of(
+                      profile.country.toUpperCase(),
+                    ) || profile.country
+                  );
+                })()}
               </Typography>
             </Box>
           </Box>
@@ -1925,9 +1531,9 @@ const ProfileView = ({ profile }: ProfileViewProps) => {
             Languages I Know
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
-            {profile.languagesKnown.map((lang, index) => (
+            {profile.languagesKnown.map((lang) => (
               <Chip
-                key={index}
+                key={`${lang.code}-${lang.name}-${lang.level}`}
                 label={
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <FlagIcon
@@ -1953,9 +1559,9 @@ const ProfileView = ({ profile }: ProfileViewProps) => {
             Languages I'm Learning
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
-            {profile.languagesLearn.map((lang, index) => (
+            {profile.languagesLearn.map((lang) => (
               <Chip
-                key={index}
+                key={`${lang.code}-${lang.name}-${lang.level}`}
                 label={
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <FlagIcon
@@ -2039,11 +1645,11 @@ const FriendsSection = ({
 
       const results = await Promise.all(avatarPromises);
       const avatarMap: Record<string, string> = {};
-      results.forEach((result) => {
-        if (result && result.url) {
+      for (const result of results) {
+        if (result?.url) {
           avatarMap[result.id] = result.url;
         }
-      });
+      }
       setFriendAvatars(avatarMap);
       // Reset loaded states when avatars change
       setLoadedFriendAvatars({});
@@ -2126,14 +1732,16 @@ const FriendsSection = ({
                             : 1,
                         transition: 'opacity 0.3s ease-in-out',
                       }}
-                      imgProps={{
-                        onLoad: () => {
-                          if (friendAvatars[friend.id]) {
-                            setLoadedFriendAvatars((prev) => ({
-                              ...prev,
-                              [friend.id]: true,
-                            }));
-                          }
+                      slotProps={{
+                        img: {
+                          onLoad: () => {
+                            if (friendAvatars[friend.id]) {
+                              setLoadedFriendAvatars((prev) => ({
+                                ...prev,
+                                [friend.id]: true,
+                              }));
+                            }
+                          },
                         },
                       }}
                     >
@@ -2251,14 +1859,16 @@ const FriendsSection = ({
                                 senderAvatar && !senderAvatarLoaded ? 0 : 1,
                               transition: 'opacity 0.3s ease-in-out',
                             }}
-                            imgProps={{
-                              onLoad: () => {
-                                if (senderAvatar && sender?.id) {
-                                  setLoadedFriendAvatars((prev) => ({
-                                    ...prev,
-                                    [sender.id]: true,
-                                  }));
-                                }
+                            slotProps={{
+                              img: {
+                                onLoad: () => {
+                                  if (senderAvatar && sender?.id) {
+                                    setLoadedFriendAvatars((prev) => ({
+                                      ...prev,
+                                      [sender.id]: true,
+                                    }));
+                                  }
+                                },
                               },
                             }}
                           >
