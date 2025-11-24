@@ -47,6 +47,8 @@ import {
   ReportGmailerrorred as ReportGmailerrorredIcon,
   Visibility as VisibilityIcon,
   PhotoCamera as PhotoCameraIcon,
+  Check as CheckIcon,
+  Cancel as CancelIcon,
 } from '@mui/icons-material';
 import KeyIcon from '@mui/icons-material/Key';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
@@ -115,7 +117,7 @@ function TabPanel(props: TabPanelProps) {
 }
 
 const ProfilePage = () => {
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   const { username } = useParams<{ username?: string }>();
   const dispatch = useAppDispatch();
   const { user: currentUser, accessToken } = useAppSelector(
@@ -210,6 +212,13 @@ const ProfilePage = () => {
   const hasPendingRequest = sentRequests.some(
     (req: any) => req.receiver?.id === profileUserId,
   );
+  const pendingRequests = pendingRequestsData?.pendingFriendRequests || [];
+  const hasReceivedRequest =
+    !isOwnProfile &&
+    pendingRequests.some((req: any) => req.sender?.id === profileUserId);
+  const receivedRequestFromProfile = !isOwnProfile
+    ? pendingRequests.find((req: any) => req.sender?.id === profileUserId)
+    : null;
 
   // Fetch and set avatar URL
   useEffect(() => {
@@ -260,6 +269,9 @@ const ProfilePage = () => {
   const handleAvatarClick = (event: React.MouseEvent<HTMLElement>) => {
     if (isOwnProfile) {
       setAvatarMenuAnchor(event.currentTarget);
+    } else if (avatarUrlSigned) {
+      // For other users, open the image view dialog
+      setAvatarViewDialogOpen(true);
     }
   };
 
@@ -476,7 +488,14 @@ const ProfilePage = () => {
   }
 
   return (
-    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+    <Container
+      maxWidth="md"
+      sx={{
+        mt: { xs: 2, sm: 3, md: 4 },
+        mb: { xs: 2, sm: 3, md: 4 },
+        px: { xs: 1, sm: 2, md: 3 },
+      }}
+    >
       <ProfileHeader
         profile={profile}
         isOwnProfile={isOwnProfile}
@@ -491,7 +510,30 @@ const ProfilePage = () => {
         fileInputRef={fileInputRef}
         isFriend={isFriend}
         hasPendingRequest={hasPendingRequest}
+        hasReceivedRequest={hasReceivedRequest}
+        receivedRequestFromProfile={receivedRequestFromProfile}
         onFriendAction={handleFriendAction}
+        onRespondRequest={async (requestId: string, accept: boolean) => {
+          try {
+            await respondFriendRequest({
+              variables: { requestId, accept },
+            });
+            showSnackbar(
+              accept ? 'Friend request accepted' : 'Friend request rejected',
+              'success',
+            );
+            refetchPendingRequests();
+            refetchFriends();
+            if (!isOwnProfile) {
+              refetchUser();
+            }
+          } catch (error: any) {
+            showSnackbar(
+              error.message || 'Failed to respond to request',
+              'error',
+            );
+          }
+        }}
         onViewImage={() => setAvatarViewDialogOpen(true)}
       />
 
@@ -701,7 +743,10 @@ interface ProfileHeaderProps {
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   isFriend: boolean;
   hasPendingRequest: boolean;
+  hasReceivedRequest?: boolean;
+  receivedRequestFromProfile?: any;
   onFriendAction: () => void;
+  onRespondRequest?: (requestId: string, accept: boolean) => Promise<void>;
   onViewImage: () => void;
 }
 
@@ -719,20 +764,30 @@ const ProfileHeader = ({
   fileInputRef,
   isFriend,
   hasPendingRequest,
+  hasReceivedRequest = false,
+  receivedRequestFromProfile,
   onFriendAction,
+  onRespondRequest,
   onViewImage,
 }: ProfileHeaderProps) => {
   return (
-    <Paper sx={{ p: 4, mb: 4, textAlign: 'center' }}>
+    <Paper
+      sx={{
+        p: { xs: 2, sm: 3, md: 4 },
+        mb: { xs: 2, sm: 3, md: 4 },
+        textAlign: 'center',
+      }}
+    >
       <Box sx={{ position: 'relative', display: 'inline-block', mb: 2 }}>
         <IconButton
           onClick={onAvatarClick}
           disabled={uploadingAvatar}
           sx={{
-            width: { xs: 120, sm: 150, md: 180 },
-            height: { xs: 120, sm: 150, md: 180 },
+            width: { xs: 80, sm: 120, md: 150, lg: 180 },
+            height: { xs: 80, sm: 120, md: 150, lg: 180 },
             border: '4px solid',
             borderColor: 'divider',
+            cursor: !isOwnProfile && avatarUrlSigned ? 'pointer' : 'default',
           }}
         >
           {uploadingAvatar ? (
@@ -744,7 +799,7 @@ const ProfileHeader = ({
               sx={{
                 width: '100%',
                 height: '100%',
-                fontSize: { xs: '3rem', sm: '4rem', md: '5rem' },
+                fontSize: { xs: '2rem', sm: '3rem', md: '4rem', lg: '5rem' },
                 opacity: !profileAvatarLoaded ? 0 : 1,
                 transition: 'opacity 0.3s ease-in-out',
               }}
@@ -814,18 +869,57 @@ const ProfileHeader = ({
         }}
       />
 
-      <Typography variant="h4" component="h1" gutterBottom>
+      <Typography
+        variant="h4"
+        component="h1"
+        gutterBottom
+        sx={{ fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' } }}
+      >
         {isOwnProfile ? 'Account' : profile.username || 'Profile'}
       </Typography>
-      <Typography variant="body1" color="text.secondary" gutterBottom>
+      <Typography
+        variant="body1"
+        color="text.secondary"
+        gutterBottom
+        sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+      >
         {isOwnProfile
           ? 'Update your personal information'
           : profile.bio || 'User profile'}
       </Typography>
 
       {!isOwnProfile && (
-        <Box sx={{ mt: 2, display: 'flex', gap: 2, justifyContent: 'center' }}>
-          {hasPendingRequest ? (
+        <Box
+          sx={{
+            mt: { xs: 1, sm: 2 },
+            display: 'flex',
+            gap: { xs: 1, sm: 2 },
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+          }}
+        >
+          {hasReceivedRequest && receivedRequestFromProfile ? (
+            <>
+              <Button
+                variant="contained"
+                startIcon={<CheckIcon />}
+                onClick={() =>
+                  onRespondRequest?.(receivedRequestFromProfile.id, true)
+                }
+              >
+                Accept
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<CancelIcon />}
+                onClick={() =>
+                  onRespondRequest?.(receivedRequestFromProfile.id, false)
+                }
+              >
+                Reject
+              </Button>
+            </>
+          ) : hasPendingRequest ? (
             <Button
               variant="outlined"
               color="primary"
@@ -1589,63 +1683,150 @@ const LanguageSection = ({
           justifyContent: 'space-between',
           alignItems: 'center',
           mb: 2,
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: { xs: 1, sm: 2 },
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+          }}
+        >
           {title === 'Languages I Know' ? (
             <RecordVoiceOverIcon color="primary" />
           ) : (
             <TranslateIcon color="primary" />
           )}
-          <Typography variant="h5">{title}</Typography>
+          <Typography
+            variant="h5"
+            fontSize={{
+              xs: '1rem',
+              sm: '1.2rem',
+              md: '1.5rem',
+              lg: '2rem',
+            }}
+          >
+            {title}
+          </Typography>
         </Box>
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<AddIcon />}
-          onClick={onAdd}
-        >
-          Add Language
-        </Button>
       </Box>
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: { xs: 1.5, sm: 2 },
+        }}
+      >
         {languages.map((lang, index) => (
           <Box
-            key={index}
-            sx={{ display: 'flex', gap: 2, alignItems: 'center' }}
+            key={lang.code}
+            sx={{
+              display: 'flex',
+              gap: { xs: 0.5, sm: 1, md: 2 },
+              alignItems: 'center',
+              flexWrap: 'nowrap',
+            }}
           >
-            <FormControl sx={{ flex: 1 }}>
-              <InputLabel>Language</InputLabel>
+            <FormControl
+              size="small"
+              sx={{
+                flex: 1,
+                minWidth: { xs: 100, sm: 150 },
+                '& .MuiInputLabel-root': {
+                  fontSize: { xs: '0.875rem', sm: '0.875rem', md: '1rem' },
+                },
+                '& .MuiSelect-select': {
+                  fontSize: { xs: '0.875rem', sm: '0.875rem', md: '1rem' },
+                  display: 'flex',
+                  alignItems: 'center',
+                },
+              }}
+            >
+              <InputLabel size="small">Language</InputLabel>
               <Select
+                size="small"
                 value={lang.name}
                 onChange={(e) => onUpdate(index, 'name', e.target.value)}
                 input={<OutlinedInput label="Language" />}
+                MenuProps={{
+                  PaperProps: {
+                    sx: {
+                      maxHeight: { xs: 300, sm: 400 },
+                      '& .MuiMenuItem-root': {
+                        fontSize: { xs: '0.875rem', sm: '1rem' },
+                        py: { xs: 0.5, sm: 1 },
+                      },
+                    },
+                  },
+                }}
               >
                 {getAvailableLanguages(index).map((language) => (
                   <MenuItem key={language.code} value={language.name}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: { xs: 0.5, sm: 1 },
+                      }}
+                    >
                       <FlagIcon
                         countryCode={languageToCountryCode(language.code)}
-                        size={16}
+                        size={14}
                       />
-                      <Typography>{language.name}</Typography>
+                      <Typography
+                        sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                      >
+                        {language.name}
+                      </Typography>
                     </Box>
                   </MenuItem>
                 ))}
               </Select>
             </FormControl>
-            <FormControl sx={{ width: 200 }}>
-              <InputLabel>Level</InputLabel>
+            <FormControl
+              size="small"
+              sx={{
+                width: { xs: 100, sm: 130, md: 160 },
+                flexShrink: 0,
+                '& .MuiInputLabel-root': {
+                  fontSize: { xs: '0.875rem', sm: '0.875rem', md: '1rem' },
+                },
+                '& .MuiSelect-select': {
+                  fontSize: { xs: '0.875rem', sm: '0.875rem', md: '1rem' },
+                  display: 'flex',
+                  alignItems: 'center',
+                },
+              }}
+            >
+              <InputLabel size="small">Level</InputLabel>
               <Select
+                size="small"
                 value={lang.level}
                 onChange={(e) => onUpdate(index, 'level', e.target.value)}
                 input={<OutlinedInput label="Level" />}
+                MenuProps={{
+                  PaperProps: {
+                    sx: {
+                      maxHeight: { xs: 300, sm: 400 },
+                      '& .MuiMenuItem-root': {
+                        fontSize: { xs: '0.875rem', sm: '1rem' },
+                        py: { xs: 0.5, sm: 1 },
+                      },
+                    },
+                  },
+                }}
               >
                 {LANGUAGE_LEVELS.filter(
                   (level) => allowNative || level.value !== 'Native',
                 ).map((level) => (
                   <MenuItem key={level.value} value={level.value}>
-                    {level.label}
+                    <Typography
+                      sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                    >
+                      {level.label}
+                    </Typography>
                   </MenuItem>
                 ))}
               </Select>
@@ -1654,11 +1835,26 @@ const LanguageSection = ({
               color="error"
               onClick={() => onRemove(index)}
               disabled={languages.length === 1}
+              size="small"
+              sx={{
+                flexShrink: 0,
+                width: { xs: 16, sm: 36, md: 40 },
+                height: { xs: 16, sm: 36, md: 40 },
+                minWidth: { xs: 16, sm: 36, md: 40 },
+              }}
             >
-              <DeleteIcon />
+              <DeleteIcon fontSize="small" />
             </IconButton>
           </Box>
         ))}
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<AddIcon />}
+          onClick={onAdd}
+        >
+          Add Language
+        </Button>
       </Box>
     </Paper>
   );
@@ -1816,21 +2012,27 @@ const FriendsSection = ({
     const fetchFriendAvatars = async () => {
       if (!accessToken) return;
 
-      const avatarPromises = friends.map(async (friend) => {
+      // Collect all users that need avatars (friends + pending request senders)
+      const allUsers = [
+        ...friends,
+        ...pendingRequests.map((req: any) => req.sender).filter(Boolean),
+      ];
+
+      const avatarPromises = allUsers.map(async (user) => {
         // Prefer thumbnail if available, fallback to full avatar
-        const imagePath = friend.userThumbnailUrl || friend.avatarUrl;
+        const imagePath = user.userThumbnailUrl || user.avatarUrl;
         if (!imagePath) return null;
 
         try {
-          const bucket = friend.userThumbnailUrl ? 'userThumbnails' : 'avatars';
+          const bucket = user.userThumbnailUrl ? 'userThumbnails' : 'avatars';
           const url = await getSupabaseStorageUrl(
             imagePath,
             bucket,
             accessToken,
           );
-          return { id: friend.id, url: url || '' };
+          return { id: user.id, url: url || '' };
         } catch (error) {
-          console.error(`Failed to get avatar for friend ${friend.id}:`, error);
+          console.error(`Failed to get avatar for user ${user.id}:`, error);
           return null;
         }
       });
@@ -1847,12 +2049,17 @@ const FriendsSection = ({
       setLoadedFriendAvatars({});
     };
 
-    if (friends.length > 0) {
+    if (friends.length > 0 || pendingRequests.length > 0) {
       fetchFriendAvatars();
     }
-  }, [friends, accessToken]);
+  }, [friends, pendingRequests, accessToken]);
   return (
-    <Paper sx={{ p: 4, mb: 4 }}>
+    <Paper
+      sx={{
+        p: { xs: 2, sm: 3, md: 4 },
+        mb: { xs: 2, sm: 3, md: 4 },
+      }}
+    >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
         <PeopleIcon color="primary" />
         <Typography variant="h5">Friends</Typography>
@@ -1907,8 +2114,8 @@ const FriendsSection = ({
                     <Avatar
                       src={friendAvatars[friend.id]}
                       sx={{
-                        width: 56,
-                        height: 56,
+                        width: { xs: 48, sm: 56 },
+                        height: { xs: 48, sm: 56 },
                         mx: 'auto',
                         mb: 1,
                         bgcolor: 'primary.main',
@@ -2000,33 +2207,139 @@ const FriendsSection = ({
             </Typography>
           ) : (
             <Grid container spacing={2}>
-              {pendingRequests.map((request) => (
-                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={request.id}>
-                  <Paper sx={{ p: 2 }}>
-                    <Typography variant="body2" gutterBottom>
-                      {request.sender?.username || request.sender?.email}
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <Button
-                        size="small"
-                        variant="contained"
-                        color="success"
-                        onClick={() => onRespondRequest(request.id, true)}
+              {pendingRequests.map((request) => {
+                const sender = request.sender;
+                const senderAvatar = friendAvatars[sender?.id || ''];
+                const senderAvatarLoaded =
+                  loadedFriendAvatars[sender?.id || ''];
+                return (
+                  <Grid size={{ xs: 12, sm: 6, md: 4 }} key={request.id}>
+                    <Paper
+                      onClick={() => {
+                        if (sender?.username) {
+                          navigate(`/profile/${sender.username}`);
+                        }
+                      }}
+                      sx={{
+                        p: 2,
+                        cursor: sender?.username ? 'pointer' : 'default',
+                        '&:hover': {
+                          bgcolor: sender?.username
+                            ? 'action.hover'
+                            : 'transparent',
+                        },
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 2,
+                          mb: 2,
+                        }}
                       >
-                        Accept
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color="error"
-                        onClick={() => onRespondRequest(request.id, false)}
+                        <Box
+                          sx={{ position: 'relative', display: 'inline-block' }}
+                        >
+                          <Avatar
+                            src={senderAvatar}
+                            sx={{
+                              width: { xs: 48, sm: 56 },
+                              height: { xs: 48, sm: 56 },
+                              bgcolor: 'primary.main',
+                              opacity:
+                                senderAvatar && !senderAvatarLoaded ? 0 : 1,
+                              transition: 'opacity 0.3s ease-in-out',
+                            }}
+                            imgProps={{
+                              onLoad: () => {
+                                if (senderAvatar && sender?.id) {
+                                  setLoadedFriendAvatars((prev) => ({
+                                    ...prev,
+                                    [sender.id]: true,
+                                  }));
+                                }
+                              },
+                            }}
+                          >
+                            {(sender?.username || sender?.email || 'U')
+                              .charAt(0)
+                              .toUpperCase()}
+                          </Avatar>
+                          {sender?.country && (
+                            <Box
+                              sx={{
+                                position: 'absolute',
+                                bottom: 4,
+                                right: 4,
+                                width: 20,
+                                height: 20,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                overflow: 'hidden',
+                              }}
+                            >
+                              <FlagIcon
+                                countryCode={sender.country}
+                                size={16}
+                              />
+                            </Box>
+                          )}
+                        </Box>
+                        <Typography variant="body2" sx={{ flex: 1 }}>
+                          {sender?.username || sender?.email}
+                        </Typography>
+                      </Box>
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          gap: 1,
+                          justifyContent: 'center',
+                        }}
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        Reject
-                      </Button>
-                    </Box>
-                  </Paper>
-                </Grid>
-              ))}
+                        <IconButton
+                          color="success"
+                          onClick={() => onRespondRequest(request.id, true)}
+                          size="small"
+                          sx={{
+                            border: '2px solid',
+                            borderColor: 'success.main',
+                            '&:hover': {
+                              bgcolor: 'success.main',
+                              color: 'white',
+                            },
+                            '& svg': {
+                              fontSize: '1rem',
+                            },
+                          }}
+                        >
+                          <CheckIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          color="error"
+                          onClick={() => onRespondRequest(request.id, false)}
+                          size="small"
+                          sx={{
+                            border: '2px solid',
+                            borderColor: 'error.main',
+                            '&:hover': {
+                              bgcolor: 'error.main',
+                              color: 'white',
+                            },
+                            '& svg': {
+                              fontSize: '1rem',
+                            },
+                          }}
+                        >
+                          <CancelIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    </Paper>
+                  </Grid>
+                );
+              })}
             </Grid>
           )}
         </TabPanel>

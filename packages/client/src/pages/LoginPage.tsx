@@ -166,6 +166,7 @@ const LoginPage = () => {
             alignItems: 'center',
             justifyContent: 'center',
             p: 4,
+            pt: { xs: 16, sm: 4 },
             overflow: 'auto',
           }}
         >
