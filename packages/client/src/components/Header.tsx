@@ -52,11 +52,13 @@ const Header = () => {
   const [avatarLoaded, setAvatarLoaded] = useState(false);
 
   // Fetch chats to calculate unread message count
+  // Poll every 3 seconds to get real-time updates
   const { data: chatsData } = useQuery(MY_CHATS_QUERY, {
     variables: { userId: user?.id },
     skip: !user?.id || !isAuthenticated,
     fetchPolicy: 'cache-and-network',
     errorPolicy: 'all',
+    pollInterval: 3000, // Poll every 3 seconds for real-time updates
   });
 
   // Calculate total unread messages
@@ -162,15 +164,17 @@ const Header = () => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           {isAuthenticated ? (
             <>
-              <IconButton
+              <Button
                 color="inherit"
                 onClick={() => navigate('/chat')}
-                sx={{ position: 'relative' }}
+                startIcon={
+                  <Badge badgeContent={totalUnreadCount} color="error" max={99}>
+                    <ChatIcon />
+                  </Badge>
+                }
               >
-                <Badge badgeContent={totalUnreadCount} color="error" max={99}>
-                  <ChatIcon />
-                </Badge>
-              </IconButton>
+                Chat
+              </Button>
               <Avatar
                 alt={user?.username || user?.email || 'User'}
                 src={signedAvatarUrl || '/static/images/avatar/1.jpg'}

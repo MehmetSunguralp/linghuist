@@ -87,6 +87,7 @@ const ChatPage = () => {
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previousChatIdRef = useRef<string | null>(null);
+  const isLoadingOlderMessagesRef = useRef(false);
 
   // Fetch chats
   const {
@@ -706,7 +707,7 @@ const ChatPage = () => {
   // Scroll to bottom on initial load and when new messages arrive (but not when loading older messages)
   useEffect(() => {
     // Don't scroll if we're loading older messages
-    if (loadingMoreMessages) {
+    if (loadingMoreMessages || isLoadingOlderMessagesRef.current) {
       return;
     }
 
@@ -717,16 +718,20 @@ const ChatPage = () => {
         if (container) {
           // Direct scroll assignment for immediate effect
           container.scrollTop = container.scrollHeight;
-          setHasScrolledToBottom(true);
           // Double-check with requestAnimationFrame to ensure it worked
           requestAnimationFrame(() => {
             if (container) {
               container.scrollTop = container.scrollHeight;
+              // Only mark as scrolled after the animation frame completes
+              setHasScrolledToBottom(true);
             }
           });
         } else if (messagesEndRef.current) {
           messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
-          setHasScrolledToBottom(true);
+          // Mark as scrolled after a small delay to ensure scroll completed
+          setTimeout(() => {
+            setHasScrolledToBottom(true);
+          }, 100);
         }
       };
 
@@ -750,6 +755,7 @@ const ChatPage = () => {
     }
 
     setLoadingMoreMessages(true);
+    isLoadingOlderMessagesRef.current = true;
     const container = chatContainerRef.current;
     const previousScrollHeight = container?.scrollHeight || 0;
 
@@ -803,6 +809,11 @@ const ChatPage = () => {
       console.error('Failed to load more messages:', error);
     } finally {
       setLoadingMoreMessages(false);
+      // Reset the ref after a delay to allow scroll position to be restored
+      // and prevent auto-scroll when messages update
+      setTimeout(() => {
+        isLoadingOlderMessagesRef.current = false;
+      }, 500);
     }
   }, [
     selectedChat?.id,
@@ -1168,18 +1179,24 @@ const ChatPage = () => {
             <Typography variant="h6">Messages</Typography>
           </Box>
           <List sx={{ flex: 1, overflow: 'auto', p: 0 }}>
-            {chatsLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                <CircularProgress size={24} />
-              </Box>
-            ) : chats.length === 0 ? (
-              <Box sx={{ p: 3, textAlign: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                  No chats yet
-                </Typography>
-              </Box>
-            ) : (
-              chats.map((item) => {
+            {(() => {
+              if (chatsLoading) {
+                return (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                    <CircularProgress size={24} />
+                  </Box>
+                );
+              }
+              if (chats.length === 0) {
+                return (
+                  <Box sx={{ p: 3, textAlign: 'center' }}>
+                    <Typography variant="body2" color="text.secondary">
+                      No chats yet
+                    </Typography>
+                  </Box>
+                );
+              }
+              return chats.map((item) => {
                 const isSelected = selectedChat?.id === item.chat.id;
                 // Check both onlineUsers set and the user's isOnline property
                 const isOnline = item.otherUser
@@ -1336,8 +1353,8 @@ const ChatPage = () => {
                     )}
                   </ListItem>
                 );
-              })
-            )}
+              });
+            })()}
           </List>
         </Paper>
 
@@ -1456,186 +1473,207 @@ const ChatPage = () => {
                     <CircularProgress size={24} />
                   </Box>
                 )}
-                {isInitialLoad && messagesLoading && !hasScrolledToBottom ? (
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      height: '100%',
-                    }}
-                  >
-                    <CircularProgress />
-                  </Box>
-                ) : messages.length === 0 ? (
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      height: '100%',
-                    }}
-                  >
-                    <Typography variant="body2" color="text.secondary">
-                      No messages yet. Start the conversation!
-                    </Typography>
-                  </Box>
-                ) : (
-                  <>
-                    {messages.map((message) => {
-                      const isOwn = message.senderId === currentUser?.id;
+                {(() => {
+                  if (
+                    isInitialLoad &&
+                    messagesLoading &&
+                    !hasScrolledToBottom
+                  ) {
+                    return (
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          height: '100%',
+                        }}
+                      >
+                        <CircularProgress />
+                      </Box>
+                    );
+                  }
+                  if (messages.length === 0) {
+                    return (
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          height: '100%',
+                        }}
+                      >
+                        <Typography variant="body2" color="text.secondary">
+                          No messages yet. Start the conversation!
+                        </Typography>
+                      </Box>
+                    );
+                  }
+                  return (
+                    <>
+                      {messages.map((message) => {
+                        const isOwn = message.senderId === currentUser?.id;
 
-                      return (
-                        <Box
-                          key={message.id}
-                          sx={{
-                            display: 'flex',
-                            justifyContent: isOwn ? 'flex-end' : 'flex-start',
-                            mb: 2,
-                          }}
-                        >
-                          <Paper
+                        return (
+                          <Box
+                            key={message.id}
                             sx={{
-                              p: 1.5,
-                              maxWidth: '70%',
-                              bgcolor: isOwn
-                                ? 'primary.main'
-                                : 'background.paper',
-                              color: isOwn
-                                ? 'primary.contrastText'
-                                : 'text.primary',
-                              borderRadius: 2,
+                              display: 'flex',
+                              justifyContent: isOwn ? 'flex-end' : 'flex-start',
+                              mb: 2,
                             }}
                           >
-                            {message.type === MessageTypeEnum.IMAGE &&
-                            message.mediaUrl ? (
-                              <Box
-                                component="img"
-                                src={message.mediaUrl}
-                                alt="Message"
-                                sx={{
-                                  maxWidth: '100%',
-                                  borderRadius: 1,
-                                  display: 'block',
-                                }}
-                                onError={async (e) => {
-                                  // Try to get signed URL if direct URL fails
-                                  const signedUrl = await getMessageMediaUrl(
-                                    message.mediaUrl || '',
-                                  );
-                                  if (signedUrl && e.currentTarget) {
-                                    e.currentTarget.src = signedUrl;
-                                  }
-                                }}
-                              />
-                            ) : (
-                              <Typography variant="body1">
-                                {message.content}
-                              </Typography>
-                            )}
-                            <Box
+                            <Paper
                               sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'flex-end',
-                                gap: 0.5,
-                                mt: 0.5,
+                                p: 1.5,
+                                maxWidth: '70%',
+                                bgcolor: isOwn
+                                  ? 'primary.main'
+                                  : 'background.paper',
+                                color: isOwn
+                                  ? 'primary.contrastText'
+                                  : 'text.primary',
+                                borderRadius: 2,
                               }}
                             >
-                              <Typography
-                                variant="caption"
+                              {message.type === MessageTypeEnum.IMAGE &&
+                              message.mediaUrl ? (
+                                <Box
+                                  component="img"
+                                  src={message.mediaUrl}
+                                  alt="Message"
+                                  sx={{
+                                    maxWidth: '100%',
+                                    borderRadius: 1,
+                                    display: 'block',
+                                  }}
+                                  onError={async (e) => {
+                                    // Try to get signed URL if direct URL fails
+                                    const signedUrl = await getMessageMediaUrl(
+                                      message.mediaUrl || '',
+                                    );
+                                    if (signedUrl && e.currentTarget) {
+                                      e.currentTarget.src = signedUrl;
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                <Typography variant="body1">
+                                  {message.content}
+                                </Typography>
+                              )}
+                              <Box
                                 sx={{
-                                  opacity: 0.7,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'flex-end',
+                                  gap: 0.5,
+                                  mt: 0.5,
                                 }}
                               >
-                                {new Date(message.createdAt).toLocaleTimeString(
-                                  [],
-                                  {
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    opacity: 0.7,
+                                  }}
+                                >
+                                  {new Date(
+                                    message.createdAt,
+                                  ).toLocaleTimeString([], {
                                     hour: '2-digit',
                                     minute: '2-digit',
-                                  },
-                                )}
-                              </Typography>
-                              {isOwn && (
-                                <Box
-                                  sx={{ display: 'flex', alignItems: 'center' }}
-                                >
-                                  {(() => {
-                                    // Check both messageStatus and message.read property
-                                    const statusFromState =
-                                      messageStatus[message.id];
-                                    // Prioritize message.read from server, then status from state
-                                    const isRead =
-                                      message.read === true ||
-                                      statusFromState === 'read';
-                                    const status =
-                                      statusFromState ||
-                                      (message.read === true ? 'read' : 'sent');
+                                  })}
+                                </Typography>
+                                {isOwn && (
+                                  <Box
+                                    sx={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                    }}
+                                  >
+                                    {(() => {
+                                      // Check both messageStatus and message.read property
+                                      const statusFromState =
+                                        messageStatus[message.id];
+                                      // Prioritize message.read from server, then status from state
+                                      const isRead =
+                                        message.read === true ||
+                                        statusFromState === 'read';
+                                      const status =
+                                        statusFromState ||
+                                        (message.read === true
+                                          ? 'read'
+                                          : 'sent');
 
-                                    if (status === 'sending') {
-                                      return (
-                                        <AccessTimeIcon
-                                          sx={{ fontSize: 14, opacity: 0.7 }}
-                                        />
-                                      );
-                                    } else if (status === 'error') {
-                                      const failedMsg =
-                                        failedMessages[message.id];
-                                      return (
-                                        <Box
-                                          sx={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 0.5,
-                                          }}
-                                        >
-                                          <WarningIcon
+                                      if (status === 'sending') {
+                                        return (
+                                          <AccessTimeIcon
+                                            sx={{ fontSize: 14, opacity: 0.7 }}
+                                          />
+                                        );
+                                      } else if (status === 'error') {
+                                        const failedMsg =
+                                          failedMessages[message.id];
+                                        return (
+                                          <Box
                                             sx={{
-                                              fontSize: 14,
-                                              color: 'error.main',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: 0.5,
+                                            }}
+                                          >
+                                            <WarningIcon
+                                              sx={{
+                                                fontSize: 14,
+                                                color: 'error.main',
+                                              }}
+                                            />
+                                            {failedMsg && (
+                                              <IconButton
+                                                size="small"
+                                                onClick={() =>
+                                                  handleResendMessage(failedMsg)
+                                                }
+                                                sx={{
+                                                  p: 0.25,
+                                                  minWidth: 'auto',
+                                                }}
+                                              >
+                                                <SendIcon
+                                                  sx={{ fontSize: 12 }}
+                                                />
+                                              </IconButton>
+                                            )}
+                                          </Box>
+                                        );
+                                      } else if (isRead || status === 'read') {
+                                        return (
+                                          <DoneAllIcon
+                                            sx={{
+                                              fontSize: 16,
+
+                                              opacity: 0.9,
                                             }}
                                           />
-                                          {failedMsg && (
-                                            <IconButton
-                                              size="small"
-                                              onClick={() =>
-                                                handleResendMessage(failedMsg)
-                                              }
-                                              sx={{ p: 0.25, minWidth: 'auto' }}
-                                            >
-                                              <SendIcon sx={{ fontSize: 12 }} />
-                                            </IconButton>
-                                          )}
-                                        </Box>
-                                      );
-                                    } else if (isRead || status === 'read') {
-                                      return (
-                                        <DoneAllIcon
-                                          sx={{
-                                            fontSize: 16,
-
-                                            opacity: 0.9,
-                                          }}
-                                        />
-                                      );
-                                    } else {
-                                      return (
-                                        <CheckIcon
-                                          sx={{ fontSize: 14, opacity: 0.7 }}
-                                        />
-                                      );
-                                    }
-                                  })()}
-                                </Box>
-                              )}
-                            </Box>
-                          </Paper>
-                        </Box>
-                      );
-                    })}
-                    <div ref={messagesEndRef} />
-                  </>
-                )}
+                                        );
+                                      } else {
+                                        return (
+                                          <CheckIcon
+                                            sx={{ fontSize: 14, opacity: 0.7 }}
+                                          />
+                                        );
+                                      }
+                                    })()}
+                                  </Box>
+                                )}
+                              </Box>
+                            </Paper>
+                          </Box>
+                        );
+                      })}
+                      <div ref={messagesEndRef} />
+                    </>
+                  );
+                })()}
               </Box>
 
               {/* Message Input */}
