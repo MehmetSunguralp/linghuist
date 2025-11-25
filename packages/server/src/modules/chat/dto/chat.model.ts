@@ -1,4 +1,6 @@
 import { ObjectType, Field, ID } from '@nestjs/graphql';
+import { ChatParticipantModel } from './chat-participant.model';
+import { MessageModel } from './message.model';
 
 @ObjectType()
 export class ChatModel {
@@ -10,4 +12,10 @@ export class ChatModel {
 
   @Field()
   updatedAt: Date;
+
+  @Field(() => [ChatParticipantModel], { nullable: true })
+  participants?: ChatParticipantModel[];
+
+  @Field(() => [MessageModel], { nullable: true })
+  messages?: MessageModel[];
 }

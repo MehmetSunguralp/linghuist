@@ -68,6 +68,7 @@ export const USER_BY_USERNAME_QUERY = gql`
       bio
       role
       isVerified
+      isOnline
       country
       age
       languagesKnown {

@@ -19,6 +19,18 @@ export class MessageModel {
   @Field()
   createdAt: Date;
 
-  @Field(() => User)
-  sender: User;
+  @Field()
+  senderId: string;
+
+  @Field({ nullable: true })
+  receiverId?: string;
+
+  @Field({ nullable: true })
+  chatId?: string;
+
+  @Field(() => Boolean)
+  read: boolean;
+
+  @Field(() => User, { nullable: true })
+  sender?: User;
 }

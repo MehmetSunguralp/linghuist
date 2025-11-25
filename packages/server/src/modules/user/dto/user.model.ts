@@ -47,6 +47,9 @@ export class User {
   @Field(() => Boolean)
   isVerified: boolean;
 
+  @Field(() => Boolean)
+  isOnline: boolean;
+
   @Field(() => [UserLanguage], { nullable: true })
   languagesKnown?: UserLanguage[];
 

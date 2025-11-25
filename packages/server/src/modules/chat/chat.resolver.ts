@@ -1,7 +1,8 @@
-import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
 import { ChatService } from './chat.service';
 import { ChatModel } from './dto/chat.model';
 import { MessageModel } from './dto/message.model';
+import { MessagesResponseModel } from './dto/messages-response.model';
 import { SendMessageInput } from './dto/send-message.input';
 
 @Resolver(() => ChatModel)
@@ -13,12 +14,13 @@ export class ChatResolver {
     return this.chatService.getUserChats(userId);
   }
 
-  @Query(() => [MessageModel])
+  @Query(() => MessagesResponseModel)
   async getMessages(
     @Args('chatId') chatId: string,
-    @Args('take') take: number,
+    @Args('take', { type: () => Int, nullable: true, defaultValue: 30 }) take: number,
+    @Args('cursor', { nullable: true }) cursor?: string,
   ) {
-    return this.chatService.getMessages(chatId, take);
+    return this.chatService.getMessages(chatId, take, cursor);
   }
 
   @Mutation(() => MessageModel)

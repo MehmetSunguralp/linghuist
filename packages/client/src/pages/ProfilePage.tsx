@@ -751,6 +751,7 @@ const ProfileHeader = ({
   onRespondRequest,
   onViewImage,
 }: ProfileHeaderProps) => {
+  const navigate = useNavigate();
   return (
     <Paper
       sx={{
@@ -768,7 +769,7 @@ const ProfileHeader = ({
             height: { xs: 80, sm: 120, md: 150, lg: 180 },
             border: '4px solid',
             borderColor: 'divider',
-            cursor: !isOwnProfile && avatarUrlSigned ? 'pointer' : 'default',
+            cursor: 'pointer',
           }}
         >
           {(() => {
@@ -958,7 +959,9 @@ const ProfileHeader = ({
               color="primary"
               startIcon={<ChatIcon />}
               onClick={() => {
-                alert('Chat feature coming soon');
+                if (profile.username) {
+                  navigate(`/chat/${profile.username}`);
+                }
               }}
             >
               Start Chat

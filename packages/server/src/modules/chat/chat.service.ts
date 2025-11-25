@@ -99,13 +99,55 @@ export class ChatService {
     });
   }
 
-  async getMessages(chatId: string, take = 100) {
-    return prisma.message.findMany({
-      where: { chatId },
-      orderBy: { createdAt: 'asc' },
-      take,
+  async getMessages(
+    chatId: string,
+    take = 50,
+    cursor?: string,
+  ): Promise<{
+    messages: any[];
+    hasMore: boolean;
+    nextCursor: string | null;
+  }> {
+    // If cursor is provided, fetch messages before that cursor (older messages)
+    // If no cursor, fetch the most recent messages
+    const where: any = { chatId };
+    
+    if (cursor) {
+      // Get the cursor message to use its createdAt as reference
+      const cursorMessage = await prisma.message.findUnique({
+        where: { id: cursor },
+        select: { createdAt: true },
+      });
+      
+      if (cursorMessage) {
+        where.createdAt = { lt: cursorMessage.createdAt };
+      }
+    }
+
+    // Fetch one extra to check if there are more messages
+    const messages = await prisma.message.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: take + 1,
       include: { sender: true },
     });
+
+    const hasMore = messages.length > take;
+    const messagesToReturn = hasMore ? messages.slice(0, take) : messages;
+    
+    // Reverse to get chronological order (oldest first)
+    const reversedMessages = messagesToReturn.reverse();
+    
+    // Get the oldest message ID as next cursor (for fetching older messages)
+    const nextCursor = hasMore && reversedMessages.length > 0 
+      ? reversedMessages[0].id 
+      : null;
+
+    return {
+      messages: reversedMessages,
+      hasMore,
+      nextCursor,
+    };
   }
 
   async markMessageAsRead(messageId: string, userId: string) {

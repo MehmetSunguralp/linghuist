@@ -2,12 +2,14 @@ import {
   WebSocketGateway,
   WebSocketServer,
   OnGatewayConnection,
+  OnGatewayDisconnect,
   SubscribeMessage,
   MessageBody,
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { ChatService } from './chat.service';
+import { UserService } from '../user/user.service';
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 import { MessageType } from 'src/types/message.types';
@@ -19,10 +21,13 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 @WebSocketGateway({ cors: { origin: true } })
-export class ChatGateway implements OnGatewayConnection {
+export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
 
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly userService: UserService,
+  ) {}
 
   async handleConnection(socket: Socket) {
     const token =
@@ -43,10 +48,25 @@ export class ChatGateway implements OnGatewayConnection {
     }
 
     (socket as any).userId = data.user.id; //TODO: Fix any type
+    
+    // Update user presence to online
+    await this.userService.updateUserPresence(data.user.id, true);
+    this.server.emit('user_online', { userId: data.user.id });
+    
     socket.emit('connected', { userId: data.user.id });
     console.log(
       `Connected! Socket ID: ${socket.id} - User ID: ${data.user.id}`,
     );
+  }
+  
+  handleDisconnect(socket: Socket) {
+    const userId = (socket as any).userId;
+    if (!userId) return;
+    
+    // Update user presence to offline
+    this.userService.updateUserPresence(userId, false).catch(console.error);
+    this.server.emit('user_offline', { userId });
+    console.log(`Disconnected: ${userId || 'Anonymous User'}`);
   }
 
   afterInit(server: Server) {
@@ -210,9 +230,5 @@ export class ChatGateway implements OnGatewayConnection {
     if (payload.event === 'leave_chat') {
       return this.onLeaveChat(payload.data, socket);
     }
-  }
-  handleDisconnect(socket: Socket) {
-    const userId = (socket as any).userId;
-    console.log(`Disconnected: ${userId || 'Anonymous User'}`);
   }
 }

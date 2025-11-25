@@ -14,7 +14,9 @@ import {
 import {
   Person as PersonIcon,
   Logout as LogoutIcon,
+  Chat as ChatIcon,
 } from '@mui/icons-material';
+import { Badge, IconButton } from '@mui/material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import {
@@ -28,6 +30,8 @@ import {
 } from '@/utils/supabaseStorage';
 import apolloClient from '@/lib/apolloClient';
 import { clearSupabaseClientCache } from '@/lib/supabaseClient';
+import { useQuery } from '@apollo/client';
+import { MY_CHATS_QUERY } from '@/api/queries';
 
 // Signed URLs are valid for 1 hour (3600 seconds)
 const SIGNED_URL_VALIDITY_MS = 3600 * 1000;
@@ -46,6 +50,22 @@ const Header = () => {
     null,
   );
   const [avatarLoaded, setAvatarLoaded] = useState(false);
+
+  // Fetch chats to calculate unread message count
+  const { data: chatsData } = useQuery(MY_CHATS_QUERY, {
+    variables: { userId: user?.id },
+    skip: !user?.id || !isAuthenticated,
+    fetchPolicy: 'cache-and-network',
+    errorPolicy: 'all',
+  });
+
+  // Calculate total unread messages
+  const totalUnreadCount = chatsData?.myChats?.reduce((total: number, chat: any) => {
+    const unread = chat.messages?.filter(
+      (m: any) => !m.read && m.senderId !== user?.id,
+    ).length || 0;
+    return total + unread;
+  }, 0) || 0;
 
   useEffect(() => {
     const fetchAvatarUrl = async () => {
@@ -142,6 +162,15 @@ const Header = () => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           {isAuthenticated ? (
             <>
+              <IconButton
+                color="inherit"
+                onClick={() => navigate('/chat')}
+                sx={{ position: 'relative' }}
+              >
+                <Badge badgeContent={totalUnreadCount} color="error" max={99}>
+                  <ChatIcon />
+                </Badge>
+              </IconButton>
               <Avatar
                 alt={user?.username || user?.email || 'User'}
                 src={signedAvatarUrl || '/static/images/avatar/1.jpg'}
