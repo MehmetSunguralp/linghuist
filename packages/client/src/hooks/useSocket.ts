@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { tokenStorage } from '@/utils/tokenStorage';
 
-const SOCKET_URL = import.meta.env.VITE_WEBSOCKET_URL || 'http://localhost:3000';
+const SOCKET_URL =
+  import.meta.env.VITE_WEBSOCKET_URL || 'http://localhost:3000';
 
 export const useSocket = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -10,44 +11,75 @@ export const useSocket = () => {
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    const token = tokenStorage.get();
-    if (!token) {
-      console.warn('No token available for WebSocket connection');
-      return;
-    }
+    const checkTokenAndConnect = () => {
+      const token = tokenStorage.get();
+      if (!token) {
+        // Disconnect existing socket if token is removed (e.g., on logout)
+        if (socketRef.current) {
+          console.log('Token removed, disconnecting socket');
+          socketRef.current.disconnect();
+          socketRef.current = null;
+          setSocket(null);
+          setIsConnected(false);
+        }
+        return null;
+      }
 
-    // Create socket connection
-    const newSocket = io(SOCKET_URL, {
-      auth: {
-        token,
-      },
-      transports: ['websocket', 'polling'],
-    });
+      // If socket already exists and is connected, don't recreate
+      if (socketRef.current?.connected) {
+        return socketRef.current;
+      }
 
-    socketRef.current = newSocket;
-    setSocket(newSocket);
+      // Create socket connection
+      const newSocket = io(SOCKET_URL, {
+        auth: {
+          token,
+        },
+        transports: ['websocket', 'polling'],
+      });
 
-    newSocket.on('connect', () => {
-      console.log('Socket connected:', newSocket.id);
-      setIsConnected(true);
-    });
+      socketRef.current = newSocket;
+      setSocket(newSocket);
 
-    newSocket.on('connected', (data) => {
-      console.log('Socket authenticated:', data);
-      setIsConnected(true);
-    });
+      newSocket.on('connect', () => {
+        console.log('Socket connected:', newSocket.id);
+        setIsConnected(true);
+      });
 
-    newSocket.on('disconnect', () => {
-      console.log('Socket disconnected');
-      setIsConnected(false);
-    });
+      newSocket.on('connected', (data) => {
+        console.log('Socket authenticated:', data);
+        setIsConnected(true);
+      });
 
-    newSocket.on('error', (error) => {
-      console.error('Socket error:', error);
-      setIsConnected(false);
-    });
+      newSocket.on('disconnect', () => {
+        console.log('Socket disconnected');
+        setIsConnected(false);
+      });
+
+      newSocket.on('error', (error) => {
+        console.error('Socket error:', error);
+        setIsConnected(false);
+      });
+
+      return newSocket;
+    };
+
+    checkTokenAndConnect();
+
+    // Check token periodically to handle logout
+    const tokenCheckInterval = setInterval(() => {
+      const token = tokenStorage.get();
+      if (!token && socketRef.current) {
+        console.log('Token check: No token found, disconnecting socket');
+        socketRef.current.disconnect();
+        socketRef.current = null;
+        setSocket(null);
+        setIsConnected(false);
+      }
+    }, 1000);
 
     return () => {
+      clearInterval(tokenCheckInterval);
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
@@ -59,4 +91,3 @@ export const useSocket = () => {
 
   return { socket, isConnected };
 };
-

@@ -77,6 +77,7 @@ const ChatPage = () => {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMoreMessages, setLoadingMoreMessages] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -219,6 +220,7 @@ const ChatPage = () => {
       previousChatIdRef.current = selectedChat.id;
       // Reset initial load state
       setIsInitialLoad(true);
+      setHasScrolledToBottom(false); // Reset scroll state
       setMessages([]);
       setNextCursor(null);
       setHasMoreMessages(false);
@@ -701,15 +703,21 @@ const ChatPage = () => {
     };
   }, [socket, selectedChat?.id]);
 
-  // Scroll to bottom on initial load and when new messages arrive
+  // Scroll to bottom on initial load and when new messages arrive (but not when loading older messages)
   useEffect(() => {
-    if (messages.length > 0 && !loadingMoreMessages) {
+    // Don't scroll if we're loading older messages
+    if (loadingMoreMessages) {
+      return;
+    }
+
+    if (messages.length > 0) {
       // Wait for DOM to render, then scroll to bottom
       const scrollToBottom = () => {
         const container = chatContainerRef.current;
         if (container) {
           // Direct scroll assignment for immediate effect
           container.scrollTop = container.scrollHeight;
+          setHasScrolledToBottom(true);
           // Double-check with requestAnimationFrame to ensure it worked
           requestAnimationFrame(() => {
             if (container) {
@@ -718,6 +726,7 @@ const ChatPage = () => {
           });
         } else if (messagesEndRef.current) {
           messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+          setHasScrolledToBottom(true);
         }
       };
 
@@ -1062,6 +1071,7 @@ const ChatPage = () => {
     setSelectedChat(chat);
     setOtherUser(otherUserData);
     setIsInitialLoad(true); // Reset for new chat
+    setHasScrolledToBottom(false); // Reset scroll state
     setMessages([]); // Clear messages when switching chats
     setNextCursor(null);
     setHasMoreMessages(false);
@@ -1188,23 +1198,8 @@ const ChatPage = () => {
                     }}
                   >
                     <ListItemAvatar>
-                      <Badge
-                        overlap="circular"
-                        anchorOrigin={{
-                          vertical: 'bottom',
-                          horizontal: 'right',
-                        }}
-                        variant="dot"
-                        sx={{
-                          '& .MuiBadge-badge': {
-                            bgcolor: isOnline ? '#4caf50' : 'transparent',
-                            border: '2px solid',
-                            borderColor: 'background.paper',
-                            width: 14,
-                            height: 14,
-                            minWidth: 14,
-                          },
-                        }}
+                      <Box
+                        sx={{ position: 'relative', display: 'inline-flex' }}
                       >
                         <Avatar
                           src={
@@ -1217,50 +1212,123 @@ const ChatPage = () => {
                             item.otherUser?.username ||
                             ''
                           }
+                          sx={{
+                            border: isOnline ? '3px solid #4caf50' : 'none',
+                            boxSizing: 'border-box',
+                          }}
                         >
                           {(item.otherUser?.name ||
                             item.otherUser?.username ||
                             'U')[0].toUpperCase()}
                         </Avatar>
-                      </Badge>
+                        {item.otherUser?.country && (
+                          <Box
+                            sx={{
+                              position: 'absolute',
+                              bottom: 0,
+                              right: 0,
+                              width: 20,
+                              height: 20,
+                              borderRadius: '50%',
+                              border: '2px solid',
+                              borderColor: 'background.paper',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              bgcolor: 'background.paper',
+                            }}
+                          >
+                            <FlagIcon
+                              countryCode={item.otherUser.country}
+                              size={14}
+                            />
+                          </Box>
+                        )}
+                      </Box>
                     </ListItemAvatar>
                     <ListItemText
                       primary={
-                        <Box
-                          sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
-                        >
-                          <Typography
-                            variant="subtitle2"
-                            noWrap
-                            sx={{ flex: 1 }}
-                          >
-                            {item.otherUser?.name ||
-                              item.otherUser?.username ||
-                              'Unknown'}
-                          </Typography>
-                          {item.otherUser?.country && (
-                            <FlagIcon
-                              countryCode={item.otherUser.country}
-                              size={16}
-                            />
-                          )}
-                        </Box>
+                        <Typography variant="subtitle2" noWrap sx={{ flex: 1 }}>
+                          {item.otherUser?.name ||
+                            item.otherUser?.username ||
+                            'Unknown'}
+                        </Typography>
                       }
                       secondary={
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          noWrap
+                        <Box
                           sx={{
                             display: 'flex',
                             alignItems: 'center',
                             gap: 1,
+                            justifyContent: 'space-between',
                           }}
                         >
-                          {item.lastMessage?.type === MessageTypeEnum.IMAGE
-                            ? '📷 Photo'
-                            : item.lastMessage?.content || 'No messages yet'}
-                        </Typography>
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            noWrap
+                            sx={{ flex: 1 }}
+                          >
+                            {item.lastMessage?.type === MessageTypeEnum.IMAGE
+                              ? '📷 Photo'
+                              : item.lastMessage?.content || 'No messages yet'}
+                          </Typography>
+                          {/* Show message status icons if last message is from current user */}
+                          {item.lastMessage?.senderId === currentUser?.id && (
+                            <Box
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                minWidth: 20,
+                              }}
+                            >
+                              {(() => {
+                                const status =
+                                  messageStatus[item.lastMessage.id];
+                                const isRead =
+                                  item.lastMessage.read === true ||
+                                  status === 'read';
+                                const messageStatusValue =
+                                  status ||
+                                  (item.lastMessage.read === true
+                                    ? 'read'
+                                    : 'sent');
+
+                                if (messageStatusValue === 'sending') {
+                                  return (
+                                    <AccessTimeIcon
+                                      sx={{ fontSize: 14, opacity: 0.7 }}
+                                    />
+                                  );
+                                } else if (messageStatusValue === 'error') {
+                                  return (
+                                    <WarningIcon
+                                      sx={{
+                                        fontSize: 14,
+                                        color: 'error.main',
+                                      }}
+                                    />
+                                  );
+                                } else if (
+                                  isRead ||
+                                  messageStatusValue === 'read'
+                                ) {
+                                  return (
+                                    <DoneAllIcon
+                                      sx={{ fontSize: 16, opacity: 0.9 }}
+                                    />
+                                  );
+                                } else {
+                                  return (
+                                    <CheckIcon
+                                      sx={{ fontSize: 14, opacity: 0.7 }}
+                                    />
+                                  );
+                                }
+                              })()}
+                            </Box>
+                          )}
+                        </Box>
                       }
                     />
                     {item.unreadCount > 0 && (
@@ -1308,38 +1376,47 @@ const ChatPage = () => {
                   }}
                   onClick={() => navigate(`/profile/${otherUser.username}`)}
                 >
-                  <Badge
-                    overlap="circular"
-                    anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                    variant="dot"
-                    sx={{
-                      '& .MuiBadge-badge': {
-                        bgcolor: isOtherUserOnline ? '#4caf50' : 'transparent',
-                        border: '2px solid',
-                        borderColor: 'background.paper',
-                        width: 14,
-                        height: 14,
-                        minWidth: 14,
-                      },
-                    }}
-                  >
+                  <Box sx={{ position: 'relative', display: 'inline-flex' }}>
                     <Avatar
                       src={otherUserAvatar}
                       alt={otherUser.name || otherUser.username || ''}
+                      sx={{
+                        border: isOtherUserOnline
+                          ? '3px solid #4caf50'
+                          : 'none',
+                        boxSizing: 'border-box',
+                      }}
                     >
                       {(otherUser.name ||
                         otherUser.username ||
                         'U')[0].toUpperCase()}
                     </Avatar>
-                  </Badge>
+                    {otherUser.country && (
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          bottom: 0,
+                          right: 0,
+                          width: 20,
+                          height: 20,
+                          borderRadius: '50%',
+                          border: '2px solid',
+                          borderColor: 'background.paper',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          bgcolor: 'background.paper',
+                        }}
+                      >
+                        <FlagIcon countryCode={otherUser.country} size={14} />
+                      </Box>
+                    )}
+                  </Box>
                   <Box sx={{ flex: 1 }}>
                     <Typography variant="h6">
                       {otherUser.name || otherUser.username || 'Unknown'}
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {otherUser.country && (
-                        <FlagIcon countryCode={otherUser.country} size={16} />
-                      )}
                       <Typography variant="caption" color="text.secondary">
                         {(() => {
                           const isUserTyping =
@@ -1379,7 +1456,7 @@ const ChatPage = () => {
                     <CircularProgress size={24} />
                   </Box>
                 )}
-                {isInitialLoad && messagesLoading ? (
+                {isInitialLoad && messagesLoading && !hasScrolledToBottom ? (
                   <Box
                     sx={{
                       display: 'flex',
