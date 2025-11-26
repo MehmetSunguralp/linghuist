@@ -2,8 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { tokenStorage } from '@/utils/tokenStorage';
 
-const SOCKET_URL =
-  import.meta.env.VITE_WEBSOCKET_URL || 'http://localhost:3000';
+// Auto-detect server URL based on current hostname
+const getServerUrl = () => {
+  if (import.meta.env.VITE_WEBSOCKET_URL) {
+    return import.meta.env.VITE_WEBSOCKET_URL;
+  }
+  // Use current hostname (works for both localhost and network IP)
+  const hostname = globalThis.location.hostname;
+  const port = import.meta.env.VITE_SERVER_PORT || '3000';
+  return `http://${hostname}:${port}`;
+};
+
+const SOCKET_URL = getServerUrl();
 
 export const useSocket = () => {
   const [socket, setSocket] = useState<Socket | null>(null);

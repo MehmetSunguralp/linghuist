@@ -24,6 +24,7 @@ import {
   Menu,
   MenuItem,
   ListItemIcon,
+  useMediaQuery,
 } from '@mui/material';
 import {
   Send as SendIcon,
@@ -74,6 +75,7 @@ const ChatPage = () => {
     (state) => state.auth,
   );
   const { socket, isConnected } = useSocket();
+  const isSmallMobile = useMediaQuery('(max-width: 480px)');
 
   const [chats, setChats] = useState<ChatListItem[]>([]);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
@@ -122,6 +124,7 @@ const ChatPage = () => {
   const isLoadingOlderMessagesRef = useRef(false);
   const creatingChatRef = useRef<string | null>(null); // Track which user we're creating a chat with
   const messageInputRef = useRef<HTMLInputElement>(null);
+  const clearingChatRef = useRef<string | null>(null); // Track if we're clearing a chat to prevent recreation
 
   // Fetch chats
   const {
@@ -393,7 +396,8 @@ const ChatPage = () => {
             socket &&
             isConnected &&
             userData.userByUsername.id &&
-            creatingChatRef.current !== userData.userByUsername.id
+            creatingChatRef.current !== userData.userByUsername.id &&
+            clearingChatRef.current !== userData.userByUsername.id
           ) {
             creatingChatRef.current = userData.userByUsername.id;
             socket.emit('create_or_get_chat', {
@@ -436,7 +440,11 @@ const ChatPage = () => {
       if (!existingChat) {
         // Create or get chat with this user
         // Only emit if we're not already creating a chat with this user
-        if (creatingChatRef.current !== userData.userByUsername.id) {
+        // AND we're not currently clearing a chat with this user
+        if (
+          creatingChatRef.current !== userData.userByUsername.id &&
+          clearingChatRef.current !== userData.userByUsername.id
+        ) {
           console.log('Creating chat with user:', userData.userByUsername.id);
           creatingChatRef.current = userData.userByUsername.id;
           socket.emit('create_or_get_chat', {
@@ -732,20 +740,38 @@ const ChatPage = () => {
       });
     };
 
-    const handleChatCleared = (data: { chatId: string }) => {
+    const handleChatCleared = (data: {
+      chatId: string;
+      clearedBy?: string;
+    }) => {
+      // Find the other user's ID before clearing to prevent recreation
+      const chatToClear = chats.find((item) => item.chat.id === data.chatId);
+      const otherUserId = chatToClear?.otherUser?.id;
+
+      // Mark that we're clearing this chat to prevent recreation
+      if (otherUserId) {
+        clearingChatRef.current = otherUserId;
+      }
+
       // Clear messages if this chat is selected
       if (selectedChat?.id === data.chatId) {
         setMessages([]);
       }
       // Remove chat from list (since it has no messages)
       setChats((prev) => prev.filter((item) => item.chat.id !== data.chatId));
-      // If cleared chat was selected, clear selection
+      // If cleared chat was selected, clear selection and navigate away from username URL
       if (selectedChat?.id === data.chatId) {
         setSelectedChat(null);
-        navigate('/chat');
+        setOtherUser(null);
+        navigate('/chat', { replace: true }); // Use replace to remove username from URL
       }
       // Refetch chats to ensure both users see the update
       refetchChats();
+
+      // Clear the clearing flag after a delay to allow navigation to complete
+      setTimeout(() => {
+        clearingChatRef.current = null;
+      }, 1000);
     };
 
     socket.on('chat', handleChat);
@@ -1136,6 +1162,15 @@ const ChatPage = () => {
     if (!chatToDelete || !currentUser) return;
 
     try {
+      // Find the other user's ID before clearing to prevent recreation
+      const chatToClear = chats.find((item) => item.chat.id === chatToDelete);
+      const otherUserId = chatToClear?.otherUser?.id;
+
+      // Mark that we're clearing this chat to prevent recreation
+      if (otherUserId) {
+        clearingChatRef.current = otherUserId;
+      }
+
       await clearChat({
         variables: {
           chatId: chatToDelete,
@@ -1148,16 +1183,23 @@ const ChatPage = () => {
       }
       // Update chat list - remove the chat from list since it has no messages
       setChats((prev) => prev.filter((item) => item.chat.id !== chatToDelete));
-      // If cleared chat was selected, clear selection
+      // If cleared chat was selected, clear selection and navigate away from username URL
       if (selectedChat?.id === chatToDelete) {
         setSelectedChat(null);
-        navigate('/chat');
+        setOtherUser(null);
+        navigate('/chat', { replace: true }); // Use replace to remove username from URL
       }
       setDeleteDialogOpen(false);
       setChatToDelete(null);
       refetchChats();
+
+      // Clear the clearing flag after a delay to allow navigation to complete
+      setTimeout(() => {
+        clearingChatRef.current = null;
+      }, 1000);
     } catch (error) {
       console.error('Failed to clear chat:', error);
+      clearingChatRef.current = null; // Reset on error
     }
   };
 
@@ -1294,8 +1336,21 @@ const ChatPage = () => {
     }, 0);
   };
 
+  // Check if message can be edited (less than 10 minutes old)
+  const canEditMessage = (message: Message): boolean => {
+    const messageTime = new Date(message.createdAt).getTime();
+    const currentTime = Date.now();
+    const tenMinutesInMs = 10 * 60 * 1000; // 10 minutes in milliseconds
+    return currentTime - messageTime < tenMinutesInMs;
+  };
+
   // Handle start edit
   const handleStartEdit = (message: Message) => {
+    // Check if message can still be edited
+    if (!canEditMessage(message)) {
+      console.warn('Message is too old to edit (more than 10 minutes)');
+      return;
+    }
     // Stop typing if active
     if (typing && socket && selectedChat) {
       setTyping(false);
@@ -1484,24 +1539,62 @@ const ChatPage = () => {
   }
 
   return (
-    <Box sx={{ height: 'calc(100vh - 64px)', width: '100%', display: 'flex' }}>
-      <Box sx={{ display: 'flex', height: '100%', width: '100%' }}>
+    <Box
+      sx={{
+        height: {
+          xs: 'calc(100dvh - 56px)', // Mobile header is typically 56px
+          sm: 'calc(100vh - 64px)', // Desktop header is 64px
+        },
+        width: '100%',
+        display: 'flex',
+        overflow: 'hidden',
+        maxHeight: {
+          xs: 'calc(100dvh - 56px)',
+          sm: 'calc(100vh - 64px)',
+        },
+      }}
+    >
+      <Box
+        sx={{
+          display: 'flex',
+          height: '100%',
+          width: '100%',
+          overflow: 'hidden',
+        }}
+      >
         {/* Chat List Sidebar */}
         <Paper
           sx={{
-            width: 350,
+            width: { xs: isSmallMobile ? 60 : 80, sm: 350 },
+            minWidth: { xs: isSmallMobile ? 60 : 80, sm: 350 },
             height: '100%',
             borderRadius: 0,
             borderRight: 1,
             borderColor: 'divider',
             display: 'flex',
             flexDirection: 'column',
+            transition: 'width 0.3s ease',
+            overflow: 'hidden',
           }}
         >
-          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-            <Typography variant="h6">Messages</Typography>
-          </Box>
-          <List sx={{ flex: 1, overflow: 'auto', p: 0 }}>
+          {!isSmallMobile && (
+            <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+              <Typography
+                variant="h6"
+                sx={{ fontSize: { xs: '0.875rem', sm: '1.25rem' } }}
+              >
+                Messages
+              </Typography>
+            </Box>
+          )}
+          <List
+            sx={{
+              flex: 1,
+              overflow: 'auto',
+              p: 0,
+              minHeight: 0, // Important for flexbox scrolling
+            }}
+          >
             {(() => {
               if (chatsLoading) {
                 return (
@@ -1532,25 +1625,32 @@ const ChatPage = () => {
                     key={item.chat.id}
                     onClick={() => handleChatSelect(item.chat, item.otherUser)}
                     secondaryAction={
-                      <IconButton
-                        edge="end"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setChatToDelete(item.chat.id);
-                          setDeleteDialogOpen(true);
-                        }}
-                        sx={{ mr: 1 }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
+                      !isSmallMobile && (
+                        <IconButton
+                          edge="end"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setChatToDelete(item.chat.id);
+                            setDeleteDialogOpen(true);
+                          }}
+                          sx={{ mr: 1 }}
+                          size="small"
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      )
                     }
                     sx={{
                       cursor: 'pointer',
                       '&:hover': { bgcolor: 'action.hover' },
                       bgcolor: isSelected ? 'action.selected' : 'transparent',
+                      px: { xs: isSmallMobile ? 1 : 1.5, sm: 2 },
+                      py: { xs: 1, sm: 1.5 },
                     }}
                   >
-                    <ListItemAvatar>
+                    <ListItemAvatar
+                      sx={{ minWidth: { xs: isSmallMobile ? 40 : 48, sm: 56 } }}
+                    >
                       <Box
                         sx={{ position: 'relative', display: 'inline-flex' }}
                       >
@@ -1560,19 +1660,19 @@ const ChatPage = () => {
                               ? chatListAvatars[item.otherUser.id]
                               : undefined
                           }
-                          alt={
-                            item.otherUser?.name ||
-                            item.otherUser?.username ||
-                            ''
-                          }
+                          alt={item.otherUser?.username || ''}
                           sx={{
-                            border: isOnline ? '3px solid #4caf50' : 'none',
+                            width: { xs: isSmallMobile ? 32 : 40, sm: 48 },
+                            height: { xs: isSmallMobile ? 32 : 40, sm: 48 },
+                            border: isOnline ? '2px solid #4caf50' : 'none',
                             boxSizing: 'border-box',
+                            fontSize: {
+                              xs: isSmallMobile ? '0.75rem' : '0.875rem',
+                              sm: '1.25rem',
+                            },
                           }}
                         >
-                          {(item.otherUser?.name ||
-                            item.otherUser?.username ||
-                            'U')[0].toUpperCase()}
+                          {(item.otherUser?.username || 'U')[0].toUpperCase()}
                         </Avatar>
                         {item.otherUser?.country && (
                           <Box
@@ -1580,10 +1680,10 @@ const ChatPage = () => {
                               position: 'absolute',
                               bottom: 0,
                               right: 0,
-                              width: 20,
-                              height: 20,
+                              width: { xs: isSmallMobile ? 14 : 16, sm: 20 },
+                              height: { xs: isSmallMobile ? 14 : 16, sm: 20 },
                               borderRadius: '50%',
-                              border: '2px solid',
+                              border: { xs: '1.5px solid', sm: '2px solid' },
                               borderColor: 'background.paper',
                               display: 'flex',
                               alignItems: 'center',
@@ -1593,99 +1693,133 @@ const ChatPage = () => {
                           >
                             <FlagIcon
                               countryCode={item.otherUser.country}
-                              size={14}
+                              size={isSmallMobile ? 10 : 14}
                             />
                           </Box>
                         )}
+                        {item.unreadCount > 0 && (
+                          <Badge
+                            badgeContent={item.unreadCount}
+                            color="primary"
+                            sx={{
+                              position: 'absolute',
+                              top: -4,
+                              right: -4,
+                              '& .MuiBadge-badge': {
+                                fontSize: { xs: '0.625rem', sm: '0.75rem' },
+                                minWidth: { xs: 14, sm: 18 },
+                                height: { xs: 14, sm: 18 },
+                                padding: { xs: '0 4px', sm: '0 6px' },
+                              },
+                            }}
+                          />
+                        )}
                       </Box>
                     </ListItemAvatar>
-                    <ListItemText
-                      primary={
-                        <Typography variant="subtitle2" noWrap sx={{ flex: 1 }}>
-                          {item.otherUser?.name ||
-                            item.otherUser?.username ||
-                            'Unknown'}
-                        </Typography>
-                      }
-                      secondary={
-                        <Box
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 1,
-                            justifyContent: 'space-between',
-                          }}
-                        >
+                    {!isSmallMobile && (
+                      <ListItemText
+                        primary={
                           <Typography
-                            variant="body2"
-                            color="text.secondary"
+                            variant="subtitle2"
                             noWrap
-                            sx={{ flex: 1 }}
+                            sx={{
+                              flex: 1,
+                              fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                            }}
                           >
-                            {item.lastMessage?.type === MessageTypeEnum.IMAGE
-                              ? '📷 Photo'
-                              : item.lastMessage?.content || 'No messages yet'}
+                            {item.otherUser?.username || 'Unknown'}
                           </Typography>
-                          {/* Show message status icons if last message is from current user */}
-                          {item.lastMessage?.senderId === currentUser?.id && (
-                            <Box
+                        }
+                        secondary={
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1,
+                              justifyContent: 'space-between',
+                            }}
+                          >
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              noWrap
                               sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                minWidth: 20,
+                                flex: 1,
+                                fontSize: { xs: '0.7rem', sm: '0.875rem' },
                               }}
                             >
-                              {(() => {
-                                const status =
-                                  messageStatus[item.lastMessage.id];
-                                const isRead =
-                                  item.lastMessage.read === true ||
-                                  status === 'read';
-                                const messageStatusValue =
-                                  status ||
-                                  (item.lastMessage.read === true
-                                    ? 'read'
-                                    : 'sent');
+                              {item.lastMessage?.type === MessageTypeEnum.IMAGE
+                                ? '📷 Photo'
+                                : item.lastMessage?.content ||
+                                  'No messages yet'}
+                            </Typography>
+                            {/* Show message status icons if last message is from current user */}
+                            {item.lastMessage?.senderId === currentUser?.id && (
+                              <Box
+                                sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  minWidth: 20,
+                                }}
+                              >
+                                {(() => {
+                                  const status =
+                                    messageStatus[item.lastMessage.id];
+                                  const isRead =
+                                    item.lastMessage.read === true ||
+                                    status === 'read';
+                                  const messageStatusValue =
+                                    status ||
+                                    (item.lastMessage.read === true
+                                      ? 'read'
+                                      : 'sent');
 
-                                if (messageStatusValue === 'sending') {
-                                  return (
-                                    <AccessTimeIcon
-                                      sx={{ fontSize: 14, opacity: 0.7 }}
-                                    />
-                                  );
-                                } else if (messageStatusValue === 'error') {
-                                  return (
-                                    <WarningIcon
-                                      sx={{
-                                        fontSize: 14,
-                                        color: 'error.main',
-                                      }}
-                                    />
-                                  );
-                                } else if (
-                                  isRead ||
-                                  messageStatusValue === 'read'
-                                ) {
-                                  return (
-                                    <DoneAllIcon
-                                      sx={{ fontSize: 16, opacity: 0.9 }}
-                                    />
-                                  );
-                                } else {
-                                  return (
-                                    <CheckIcon
-                                      sx={{ fontSize: 14, opacity: 0.7 }}
-                                    />
-                                  );
-                                }
-                              })()}
-                            </Box>
-                          )}
-                        </Box>
-                      }
-                    />
-                    {item.unreadCount > 0 && (
-                      <Badge badgeContent={item.unreadCount} color="primary" />
+                                  if (messageStatusValue === 'sending') {
+                                    return (
+                                      <AccessTimeIcon
+                                        sx={{
+                                          fontSize: { xs: 12, sm: 14 },
+                                          opacity: 0.7,
+                                        }}
+                                      />
+                                    );
+                                  } else if (messageStatusValue === 'error') {
+                                    return (
+                                      <WarningIcon
+                                        sx={{
+                                          fontSize: { xs: 12, sm: 14 },
+                                          color: 'error.main',
+                                        }}
+                                      />
+                                    );
+                                  } else if (
+                                    isRead ||
+                                    messageStatusValue === 'read'
+                                  ) {
+                                    return (
+                                      <DoneAllIcon
+                                        sx={{
+                                          fontSize: { xs: 14, sm: 16 },
+                                          opacity: 0.9,
+                                        }}
+                                      />
+                                    );
+                                  } else {
+                                    return (
+                                      <CheckIcon
+                                        sx={{
+                                          fontSize: { xs: 12, sm: 14 },
+                                          opacity: 0.7,
+                                        }}
+                                      />
+                                    );
+                                  }
+                                })()}
+                              </Box>
+                            )}
+                          </Box>
+                        }
+                      />
                     )}
                   </ListItem>
                 );
@@ -1701,6 +1835,8 @@ const ChatPage = () => {
             display: 'flex',
             flexDirection: 'column',
             height: '100%',
+            overflow: 'hidden',
+            minWidth: 0, // Important for flexbox
           }}
         >
           {selectedChat && otherUser ? (
@@ -1708,22 +1844,27 @@ const ChatPage = () => {
               {/* Chat Header */}
               <Paper
                 sx={{
-                  p: 2,
+                  p: { xs: 1, sm: 2 },
                   borderBottom: 1,
                   borderColor: 'divider',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 2,
+                  gap: { xs: 1, sm: 2 },
                 }}
               >
-                <IconButton onClick={() => navigate(-1)}>
-                  <ArrowBackIcon />
+                <IconButton
+                  onClick={() => navigate(-1)}
+                  size={isSmallMobile ? 'small' : 'medium'}
+                >
+                  <ArrowBackIcon
+                    fontSize={isSmallMobile ? 'small' : 'medium'}
+                  />
                 </IconButton>
                 <Box
                   sx={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 2,
+                    gap: { xs: 1, sm: 2 },
                     flex: 1,
                     cursor: 'pointer',
                   }}
@@ -1732,17 +1873,21 @@ const ChatPage = () => {
                   <Box sx={{ position: 'relative', display: 'inline-flex' }}>
                     <Avatar
                       src={otherUserAvatar}
-                      alt={otherUser.name || otherUser.username || ''}
+                      alt={otherUser.username || ''}
                       sx={{
+                        width: { xs: isSmallMobile ? 32 : 40, sm: 48 },
+                        height: { xs: isSmallMobile ? 32 : 40, sm: 48 },
                         border: isOtherUserOnline
-                          ? '3px solid #4caf50'
+                          ? '2px solid #4caf50'
                           : 'none',
                         boxSizing: 'border-box',
+                        fontSize: {
+                          xs: isSmallMobile ? '0.75rem' : '0.875rem',
+                          sm: '1.25rem',
+                        },
                       }}
                     >
-                      {(otherUser.name ||
-                        otherUser.username ||
-                        'U')[0].toUpperCase()}
+                      {(otherUser.username || 'U')[0].toUpperCase()}
                     </Avatar>
                     {otherUser.country && (
                       <Box
@@ -1750,10 +1895,10 @@ const ChatPage = () => {
                           position: 'absolute',
                           bottom: 0,
                           right: 0,
-                          width: 20,
-                          height: 20,
+                          width: { xs: isSmallMobile ? 14 : 16, sm: 20 },
+                          height: { xs: isSmallMobile ? 14 : 16, sm: 20 },
                           borderRadius: '50%',
-                          border: '2px solid',
+                          border: { xs: '1.5px solid', sm: '2px solid' },
                           borderColor: 'background.paper',
                           display: 'flex',
                           alignItems: 'center',
@@ -1761,29 +1906,45 @@ const ChatPage = () => {
                           bgcolor: 'background.paper',
                         }}
                       >
-                        <FlagIcon countryCode={otherUser.country} size={14} />
+                        <FlagIcon
+                          countryCode={otherUser.country}
+                          size={isSmallMobile ? 10 : 14}
+                        />
                       </Box>
                     )}
                   </Box>
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="h6">
-                      {otherUser.name || otherUser.username || 'Unknown'}
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="caption" color="text.secondary">
-                        {(() => {
-                          const isUserTyping =
-                            typingUsers[selectedChat.id] &&
-                            typingUsers[selectedChat.id] === otherUser.id;
-                          if (isUserTyping) {
-                            const dots = '.'.repeat((typingAnimation % 3) + 1);
-                            return `Typing${dots}`;
-                          }
-                          return isOtherUserOnline ? 'Online' : 'Offline';
-                        })()}
+                  {!isSmallMobile && (
+                    <Box sx={{ flex: 1 }}>
+                      <Typography
+                        variant="h6"
+                        sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                      >
+                        {otherUser.username || 'Unknown'}
                       </Typography>
+                      <Box
+                        sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                      >
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' } }}
+                        >
+                          {(() => {
+                            const isUserTyping =
+                              typingUsers[selectedChat.id] &&
+                              typingUsers[selectedChat.id] === otherUser.id;
+                            if (isUserTyping) {
+                              const dots = '.'.repeat(
+                                (typingAnimation % 3) + 1,
+                              );
+                              return `Typing${dots}`;
+                            }
+                            return isOtherUserOnline ? 'Online' : 'Offline';
+                          })()}
+                        </Typography>
+                      </Box>
                     </Box>
-                  </Box>
+                  )}
                 </Box>
               </Paper>
 
@@ -1793,9 +1954,11 @@ const ChatPage = () => {
                 sx={{
                   flex: 1,
                   overflow: 'auto',
-                  p: 2,
+                  p: { xs: 1, sm: 2 },
                   bgcolor: 'background.default',
                   position: 'relative',
+                  minHeight: 0, // Important for flexbox scrolling
+                  WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
                 }}
               >
                 {loadingMoreMessages && (
@@ -1821,7 +1984,8 @@ const ChatPage = () => {
                           display: 'flex',
                           justifyContent: 'center',
                           alignItems: 'center',
-                          height: '100%',
+                          minHeight: '200px',
+                          py: 4,
                         }}
                       >
                         <CircularProgress />
@@ -1835,7 +1999,8 @@ const ChatPage = () => {
                           display: 'flex',
                           justifyContent: 'center',
                           alignItems: 'center',
-                          height: '100%',
+                          minHeight: '200px',
+                          py: 4,
                         }}
                       >
                         <Typography variant="body2" color="text.secondary">
@@ -1860,15 +2025,15 @@ const ChatPage = () => {
                           >
                             <Paper
                               sx={{
-                                p: 1.5,
-                                maxWidth: '70%',
+                                p: { xs: 1, sm: 1.5 },
+                                maxWidth: { xs: '85%', sm: '70%' },
                                 bgcolor: isOwn
                                   ? 'primary.main'
                                   : 'background.paper',
                                 color: isOwn
                                   ? 'primary.contrastText'
                                   : 'text.primary',
-                                borderRadius: 2,
+                                borderRadius: { xs: 1.5, sm: 2 },
                                 position: 'relative',
                               }}
                             >
@@ -1883,7 +2048,14 @@ const ChatPage = () => {
                                   {message.deleted ? (
                                     <Typography
                                       variant="body2"
-                                      sx={{ fontStyle: 'italic', opacity: 0.7 }}
+                                      sx={{
+                                        fontStyle: 'italic',
+                                        opacity: 0.7,
+                                        fontSize: {
+                                          xs: '0.75rem',
+                                          sm: '0.875rem',
+                                        },
+                                      }}
                                     >
                                       This message was deleted
                                     </Typography>
@@ -1895,12 +2067,24 @@ const ChatPage = () => {
                                           textDecoration: 'line-through',
                                           opacity: 0.7,
                                           mb: 0.5,
+                                          fontSize: {
+                                            xs: '0.75rem',
+                                            sm: '0.875rem',
+                                          },
                                         }}
                                       >
                                         {message.originalContent ||
                                           message.content}
                                       </Typography>
-                                      <Typography variant="body1">
+                                      <Typography
+                                        variant="body1"
+                                        sx={{
+                                          fontSize: {
+                                            xs: '0.875rem',
+                                            sm: '1rem',
+                                          },
+                                        }}
+                                      >
                                         {message.correction}
                                       </Typography>
                                     </>
@@ -1927,7 +2111,15 @@ const ChatPage = () => {
                                       }}
                                     />
                                   ) : (
-                                    <Typography variant="body1">
+                                    <Typography
+                                      variant="body1"
+                                      sx={{
+                                        fontSize: {
+                                          xs: '0.875rem',
+                                          sm: '1rem',
+                                        },
+                                      }}
+                                    >
                                       {message.content}
                                     </Typography>
                                   )}
@@ -1938,6 +2130,10 @@ const ChatPage = () => {
                                         opacity: 0.7,
                                         display: 'block',
                                         mt: 0.5,
+                                        fontSize: {
+                                          xs: '0.65rem',
+                                          sm: '0.75rem',
+                                        },
                                       }}
                                     >
                                       (edited)
@@ -1946,16 +2142,21 @@ const ChatPage = () => {
                                 </Box>
                                 {!message.deleted && (
                                   <IconButton
-                                    size="small"
+                                    size={isSmallMobile ? 'small' : 'small'}
                                     onClick={(e) =>
                                       handleMessageMenuClick(e, message)
                                     }
                                     sx={{
                                       opacity: 0.7,
                                       '&:hover': { opacity: 1 },
+                                      p: { xs: 0.5, sm: 1 },
                                     }}
                                   >
-                                    <MoreVertIcon fontSize="small" />
+                                    <MoreVertIcon
+                                      fontSize={
+                                        isSmallMobile ? 'small' : 'small'
+                                      }
+                                    />
                                   </IconButton>
                                 )}
                               </Box>
@@ -1972,6 +2173,7 @@ const ChatPage = () => {
                                   variant="caption"
                                   sx={{
                                     opacity: 0.7,
+                                    fontSize: { xs: '0.65rem', sm: '0.75rem' },
                                   }}
                                 >
                                   {new Date(
@@ -2153,11 +2355,11 @@ const ChatPage = () => {
               {/* Message Input */}
               <Paper
                 sx={{
-                  p: 2,
+                  p: { xs: 1, sm: 2 },
                   borderTop: 1,
                   borderColor: 'divider',
                   display: 'flex',
-                  gap: 1,
+                  gap: { xs: 0.5, sm: 1 },
                   alignItems: 'center',
                 }}
               >
@@ -2173,8 +2375,11 @@ const ChatPage = () => {
                     color="primary"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={sending}
+                    size={isSmallMobile ? 'small' : 'medium'}
                   >
-                    <PhotoCameraIcon />
+                    <PhotoCameraIcon
+                      fontSize={isSmallMobile ? 'small' : 'medium'}
+                    />
                   </IconButton>
                 )}
                 <TextField
@@ -2196,8 +2401,13 @@ const ChatPage = () => {
                     }
                   }}
                   disabled={sending || !isConnected}
+                  size={isSmallMobile ? 'small' : 'medium'}
                   slotProps={{
                     input: {
+                      sx: {
+                        fontSize: { xs: '0.875rem', sm: '1rem' },
+                        py: { xs: 1, sm: 1.5 },
+                      },
                       endAdornment: (
                         <InputAdornment position="end">
                           <IconButton
@@ -2206,13 +2416,20 @@ const ChatPage = () => {
                             disabled={
                               !messageInput.trim() || sending || !isConnected
                             }
+                            size={isSmallMobile ? 'small' : 'medium'}
                           >
                             {sending ? (
-                              <CircularProgress size={20} />
+                              <CircularProgress
+                                size={isSmallMobile ? 16 : 20}
+                              />
                             ) : correctingMessage || editingMessage ? (
-                              <CheckCircleIcon />
+                              <CheckCircleIcon
+                                fontSize={isSmallMobile ? 'small' : 'medium'}
+                              />
                             ) : (
-                              <SendIcon />
+                              <SendIcon
+                                fontSize={isSmallMobile ? 'small' : 'medium'}
+                              />
                             )}
                           </IconButton>
                         </InputAdornment>
@@ -2228,9 +2445,10 @@ const ChatPage = () => {
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center',
-                height: '100%',
+                flex: 1,
                 flexDirection: 'column',
                 gap: 2,
+                minHeight: 0,
               }}
             >
               <Typography variant="h6" color="text.secondary">
@@ -2276,18 +2494,21 @@ const ChatPage = () => {
       >
         {messageMenuAnchor?.message.senderId === currentUser?.id ? (
           <>
-            <MenuItem
-              onClick={() => {
-                if (messageMenuAnchor?.message) {
-                  handleStartEdit(messageMenuAnchor.message);
-                }
-              }}
-            >
-              <ListItemIcon>
-                <EditIcon fontSize="small" />
-              </ListItemIcon>
-              Edit
-            </MenuItem>
+            {messageMenuAnchor.message &&
+              canEditMessage(messageMenuAnchor.message) && (
+                <MenuItem
+                  onClick={() => {
+                    if (messageMenuAnchor?.message) {
+                      handleStartEdit(messageMenuAnchor.message);
+                    }
+                  }}
+                >
+                  <ListItemIcon>
+                    <EditIcon fontSize="small" />
+                  </ListItemIcon>
+                  Edit
+                </MenuItem>
+              )}
             <MenuItem
               onClick={() => {
                 if (messageMenuAnchor?.message) {

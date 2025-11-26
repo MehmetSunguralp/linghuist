@@ -1,10 +1,26 @@
-import { ApolloClient, InMemoryCache, createHttpLink, from } from '@apollo/client';
+import {
+  ApolloClient,
+  InMemoryCache,
+  createHttpLink,
+  from,
+} from '@apollo/client';
 import { setContext } from '@apollo/client/link/context';
 import { onError } from '@apollo/client/link/error';
 import { tokenStorage } from '@/utils/tokenStorage';
 
+// Auto-detect GraphQL URL based on current hostname
+const getGraphQLUrl = () => {
+  if (import.meta.env.VITE_GRAPHQL_URL) {
+    return import.meta.env.VITE_GRAPHQL_URL;
+  }
+  // Use current hostname (works for both localhost and network IP)
+  const hostname = globalThis.location.hostname;
+  const port = import.meta.env.VITE_SERVER_PORT || '3000';
+  return `http://${hostname}:${port}/graphql`;
+};
+
 const httpLink = createHttpLink({
-  uri: import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:3000/graphql',
+  uri: getGraphQLUrl(),
 });
 
 const authLink = setContext((_, { headers }) => {
@@ -34,14 +50,14 @@ const errorLink = onError(({ graphQLErrors, networkError }) => {
       if (isUnauthorized) {
         // Clear token storage
         tokenStorage.remove();
-        
+
         // Clear Apollo cache
         if (apolloClientInstance) {
           apolloClientInstance.clearStore();
         }
-        
+
         // Dispatch a custom event that components can listen to
-        window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+        globalThis.dispatchEvent(new CustomEvent('auth:unauthorized'));
       }
     });
   }
@@ -51,14 +67,14 @@ const errorLink = onError(({ graphQLErrors, networkError }) => {
     if ('statusCode' in networkError && networkError.statusCode === 401) {
       // Clear token storage
       tokenStorage.remove();
-      
+
       // Clear Apollo cache
       if (apolloClientInstance) {
         apolloClientInstance.clearStore();
       }
-      
+
       // Dispatch a custom event that components can listen to
-      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+      globalThis.dispatchEvent(new CustomEvent('auth:unauthorized'));
     }
   }
 });
@@ -72,4 +88,3 @@ const client = new ApolloClient({
 apolloClientInstance = client;
 
 export default client;
-
