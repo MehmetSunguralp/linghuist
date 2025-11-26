@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@apollo/client';
+import { useQuery, useMutation } from '@apollo/client';
 import {
   Box,
   Typography,
@@ -15,6 +15,15 @@ import {
   Badge,
   CircularProgress,
   InputAdornment,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
+  Menu,
+  MenuItem,
+  ListItemIcon,
 } from '@mui/material';
 import {
   Send as SendIcon,
@@ -24,6 +33,13 @@ import {
   DoneAll as DoneAllIcon,
   AccessTime as AccessTimeIcon,
   Warning as WarningIcon,
+  Delete as DeleteIcon,
+  Edit as EditIcon,
+  MoreVert as MoreVertIcon,
+  ContentCopy as ContentCopyIcon,
+  Spellcheck as SpellcheckIcon,
+  CheckCircle as CheckCircleIcon,
+  Cancel as CancelIcon,
 } from '@mui/icons-material';
 import { useAppSelector } from '@/store/hooks';
 import { useSocket } from '@/hooks/useSocket';
@@ -32,6 +48,12 @@ import {
   GET_MESSAGES_QUERY,
   USER_BY_USERNAME_QUERY,
 } from '@/api/queries';
+import {
+  CLEAR_CHAT_MUTATION,
+  EDIT_MESSAGE_MUTATION,
+  DELETE_MESSAGE_MUTATION,
+  CORRECT_MESSAGE_MUTATION,
+} from '@/api/mutations';
 import { getSupabaseStorageUrl, uploadImage } from '@/utils/supabaseStorage';
 import { compressImageTo250KB } from '@/utils/imageCompression';
 import FlagIcon from '@/components/FlagIcon';
@@ -78,6 +100,16 @@ const ChatPage = () => {
   const [loadingMoreMessages, setLoadingMoreMessages] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [chatToDelete, setChatToDelete] = useState<string | null>(null);
+  const [messageMenuAnchor, setMessageMenuAnchor] = useState<{
+    element: HTMLElement;
+    message: Message;
+  } | null>(null);
+  const [correctingMessage, setCorrectingMessage] = useState<Message | null>(
+    null,
+  );
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -88,6 +120,8 @@ const ChatPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previousChatIdRef = useRef<string | null>(null);
   const isLoadingOlderMessagesRef = useRef(false);
+  const creatingChatRef = useRef<string | null>(null); // Track which user we're creating a chat with
+  const messageInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch chats
   const {
@@ -114,6 +148,12 @@ const ChatPage = () => {
     errorPolicy: 'all',
     notifyOnNetworkStatusChange: true,
   });
+
+  // Mutations
+  const [clearChat] = useMutation(CLEAR_CHAT_MUTATION);
+  const [editMessage] = useMutation(EDIT_MESSAGE_MUTATION);
+  const [deleteMessage] = useMutation(DELETE_MESSAGE_MUTATION);
+  const [correctMessage] = useMutation(CORRECT_MESSAGE_MUTATION);
 
   // Update messages when messagesData changes and mark as read
   useEffect(() => {
@@ -259,8 +299,8 @@ const ChatPage = () => {
   // Process chats data
   useEffect(() => {
     if (chatsData?.myChats) {
-      const processedChats: ChatListItem[] = chatsData.myChats.map(
-        (chat: Chat) => {
+      const processedChats: ChatListItem[] = chatsData.myChats
+        .map((chat: Chat) => {
           const otherParticipant = chat.participants?.find(
             (p) => p.userId !== currentUser?.id,
           );
@@ -285,8 +325,16 @@ const ChatPage = () => {
             lastMessage,
             unreadCount,
           };
-        },
-      );
+        })
+        // Deduplicate by other user ID - keep the most recent chat if duplicates exist
+        .filter((item: ChatListItem, index: number, self: ChatListItem[]) => {
+          if (!item.otherUser?.id) return true;
+          const firstIndex = self.findIndex(
+            (i: ChatListItem) => i.otherUser?.id === item.otherUser?.id,
+          );
+          // Keep only the first occurrence (most recent due to orderBy in query)
+          return firstIndex === index;
+        });
 
       setChats(processedChats);
 
@@ -340,7 +388,14 @@ const ChatPage = () => {
           // Set otherUser first so it's available when chat is created
           setOtherUser(userData.userByUsername);
           // Create or get chat with this user when socket is ready
-          if (socket && isConnected && userData.userByUsername.id) {
+          // Only emit if we're not already creating a chat with this user
+          if (
+            socket &&
+            isConnected &&
+            userData.userByUsername.id &&
+            creatingChatRef.current !== userData.userByUsername.id
+          ) {
+            creatingChatRef.current = userData.userByUsername.id;
             socket.emit('create_or_get_chat', {
               otherUserId: userData.userByUsername.id,
             });
@@ -380,10 +435,14 @@ const ChatPage = () => {
 
       if (!existingChat) {
         // Create or get chat with this user
-        console.log('Creating chat with user:', userData.userByUsername.id);
-        socket.emit('create_or_get_chat', {
-          otherUserId: userData.userByUsername.id,
-        });
+        // Only emit if we're not already creating a chat with this user
+        if (creatingChatRef.current !== userData.userByUsername.id) {
+          console.log('Creating chat with user:', userData.userByUsername.id);
+          creatingChatRef.current = userData.userByUsername.id;
+          socket.emit('create_or_get_chat', {
+            otherUserId: userData.userByUsername.id,
+          });
+        }
       } else {
         // Chat exists, select it
         console.log('Found existing chat, selecting it');
@@ -438,6 +497,9 @@ const ChatPage = () => {
     if (!socket) return;
 
     const handleChat = (data: { chatId: string; messages: Message[] }) => {
+      // Reset the creating chat ref since we got a response
+      creatingChatRef.current = null;
+
       // Create or update the selected chat
       const chatToSet: Chat = {
         id: data.chatId,
@@ -457,9 +519,13 @@ const ChatPage = () => {
         setOtherUser(userData.userByUsername);
 
         // Add new chat to the list if it doesn't exist
+        // Check both by chat ID and by other user ID to prevent duplicates
         setChats((prev) => {
-          const exists = prev.some((item) => item.chat.id === data.chatId);
-          if (!exists && userData.userByUsername) {
+          const existsById = prev.some((item) => item.chat.id === data.chatId);
+          const existsByUser = prev.some(
+            (item) => item.otherUser?.id === userData.userByUsername.id,
+          );
+          if (!existsById && !existsByUser && userData.userByUsername) {
             // Fetch avatar/thumbnail for new chat
             const imagePath =
               userData.userByUsername.userThumbnailUrl ||
@@ -666,6 +732,22 @@ const ChatPage = () => {
       });
     };
 
+    const handleChatCleared = (data: { chatId: string }) => {
+      // Clear messages if this chat is selected
+      if (selectedChat?.id === data.chatId) {
+        setMessages([]);
+      }
+      // Remove chat from list (since it has no messages)
+      setChats((prev) => prev.filter((item) => item.chat.id !== data.chatId));
+      // If cleared chat was selected, clear selection
+      if (selectedChat?.id === data.chatId) {
+        setSelectedChat(null);
+        navigate('/chat');
+      }
+      // Refetch chats to ensure both users see the update
+      refetchChats();
+    };
+
     socket.on('chat', handleChat);
     socket.on('message', handleMessage);
     socket.on('message_read', handleMessageRead);
@@ -673,6 +755,48 @@ const ChatPage = () => {
     socket.on('stop_typing', handleStopTyping);
     socket.on('user_online', handleUserOnline);
     socket.on('user_offline', handleUserOffline);
+    socket.on('chat_cleared', handleChatCleared);
+
+    const handleMessageEdited = (data: {
+      chatId: string;
+      messageId: string;
+      content: string;
+      edited: boolean;
+    }) => {
+      // Update message in local state
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === data.messageId
+            ? { ...m, content: data.content, edited: data.edited }
+            : m,
+        ),
+      );
+    };
+
+    const handleMessageCorrected = (data: {
+      chatId: string;
+      messageId: string;
+      correction: string;
+      originalContent: string | null;
+      correctedBy: string;
+    }) => {
+      // Update message in local state
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === data.messageId
+            ? {
+                ...m,
+                correction: data.correction,
+                originalContent: data.originalContent,
+                correctedBy: data.correctedBy,
+              }
+            : m,
+        ),
+      );
+    };
+
+    socket.on('message_edited', handleMessageEdited);
+    socket.on('message_corrected', handleMessageCorrected);
 
     return () => {
       socket.off('chat', handleChat);
@@ -682,6 +806,9 @@ const ChatPage = () => {
       socket.off('stop_typing', handleStopTyping);
       socket.off('user_online', handleUserOnline);
       socket.off('user_offline', handleUserOffline);
+      socket.off('chat_cleared', handleChatCleared);
+      socket.off('message_edited', handleMessageEdited);
+      socket.off('message_corrected', handleMessageCorrected);
     };
   }, [
     socket,
@@ -903,6 +1030,16 @@ const ChatPage = () => {
 
   // Send text message
   const handleSendMessage = async () => {
+    // If in correction or edit mode, handle that instead
+    if (correctingMessage) {
+      await handleCorrectMessage(messageInput.trim());
+      return;
+    }
+    if (editingMessage) {
+      await handleEditMessage(editingMessage, messageInput.trim());
+      return;
+    }
+
     if (
       !messageInput.trim() ||
       !selectedChat ||
@@ -992,6 +1129,192 @@ const ChatPage = () => {
     } finally {
       setSending(false);
     }
+  };
+
+  // Clear chat (delete all messages, keep chat)
+  const handleClearChat = async () => {
+    if (!chatToDelete || !currentUser) return;
+
+    try {
+      await clearChat({
+        variables: {
+          chatId: chatToDelete,
+          userId: currentUser.id,
+        },
+      });
+      // Clear messages if this chat is selected
+      if (selectedChat?.id === chatToDelete) {
+        setMessages([]);
+      }
+      // Update chat list - remove the chat from list since it has no messages
+      setChats((prev) => prev.filter((item) => item.chat.id !== chatToDelete));
+      // If cleared chat was selected, clear selection
+      if (selectedChat?.id === chatToDelete) {
+        setSelectedChat(null);
+        navigate('/chat');
+      }
+      setDeleteDialogOpen(false);
+      setChatToDelete(null);
+      refetchChats();
+    } catch (error) {
+      console.error('Failed to clear chat:', error);
+    }
+  };
+
+  // Edit message
+  const handleEditMessage = async (message: Message, newContent: string) => {
+    if (!currentUser || !socket || !selectedChat) return;
+
+    // Stop typing if active
+    if (typing) {
+      setTyping(false);
+      socket.emit('stop_typing', { chatId: selectedChat.id });
+    }
+
+    try {
+      await editMessage({
+        variables: {
+          input: {
+            messageId: message.id,
+            content: newContent,
+          },
+          userId: currentUser.id,
+        },
+      });
+      // Update local state
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === message.id ? { ...m, content: newContent, edited: true } : m,
+        ),
+      );
+      setEditingMessage(null);
+      setMessageInput('');
+    } catch (error) {
+      console.error('Failed to edit message:', error);
+    }
+  };
+
+  // Delete message
+  const handleDeleteMessage = async (message: Message) => {
+    if (!currentUser) return;
+
+    try {
+      await deleteMessage({
+        variables: {
+          messageId: message.id,
+          userId: currentUser.id,
+        },
+      });
+      // Update local state
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === message.id ? { ...m, deleted: true, content: null } : m,
+        ),
+      );
+      setMessageMenuAnchor(null);
+    } catch (error) {
+      console.error('Failed to delete message:', error);
+    }
+  };
+
+  // Correct message
+  const handleCorrectMessage = async (correction: string) => {
+    if (!correctingMessage || !currentUser || !socket || !selectedChat) return;
+
+    // Stop typing if active
+    if (typing) {
+      setTyping(false);
+      socket.emit('stop_typing', { chatId: selectedChat.id });
+    }
+
+    try {
+      await correctMessage({
+        variables: {
+          input: {
+            messageId: correctingMessage.id,
+            correction: correction,
+          },
+          correctorId: currentUser.id,
+        },
+      });
+      // Update local state
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === correctingMessage.id
+            ? {
+                ...m,
+                correction: correction,
+                originalContent: m.content ?? null,
+                correctedBy: currentUser.id,
+              }
+            : m,
+        ),
+      );
+      setCorrectingMessage(null);
+      setMessageInput('');
+    } catch (error) {
+      console.error('Failed to correct message:', error);
+    }
+  };
+
+  // Handle message menu click
+  const handleMessageMenuClick = (
+    event: React.MouseEvent<HTMLElement>,
+    message: Message,
+  ) => {
+    setMessageMenuAnchor({ element: event.currentTarget, message });
+  };
+
+  // Handle message menu close
+  const handleMessageMenuClose = () => {
+    setMessageMenuAnchor(null);
+  };
+
+  // Handle copy message
+  const handleCopyMessage = (message: Message) => {
+    if (message.content) {
+      navigator.clipboard.writeText(message.content);
+      setMessageMenuAnchor(null);
+    }
+  };
+
+  // Handle start correction
+  const handleStartCorrection = (message: Message) => {
+    // Stop typing if active
+    if (typing && socket && selectedChat) {
+      setTyping(false);
+      socket.emit('stop_typing', { chatId: selectedChat.id });
+    }
+    setCorrectingMessage(message);
+    setMessageInput(message.content || '');
+    setMessageMenuAnchor(null);
+    // Focus input after state update
+    setTimeout(() => {
+      messageInputRef.current?.focus();
+    }, 0);
+  };
+
+  // Handle start edit
+  const handleStartEdit = (message: Message) => {
+    // Stop typing if active
+    if (typing && socket && selectedChat) {
+      setTyping(false);
+      socket.emit('stop_typing', { chatId: selectedChat.id });
+    }
+    setEditingMessage(message);
+    setMessageInput(message.content || '');
+    setMessageMenuAnchor(null);
+    // Focus input after state update
+    setTimeout(() => {
+      messageInputRef.current?.focus();
+    }, 0);
+  };
+
+  // Handle cancel correction/edit
+  const handleCancelCorrection = () => {
+    setCorrectingMessage(null);
+    setEditingMessage(null);
+    setMessageInput('');
   };
 
   // Handle photo upload
@@ -1208,6 +1531,19 @@ const ChatPage = () => {
                   <ListItem
                     key={item.chat.id}
                     onClick={() => handleChatSelect(item.chat, item.otherUser)}
+                    secondaryAction={
+                      <IconButton
+                        edge="end"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setChatToDelete(item.chat.id);
+                          setDeleteDialogOpen(true);
+                        }}
+                        sx={{ mr: 1 }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    }
                     sx={{
                       cursor: 'pointer',
                       '&:hover': { bgcolor: 'action.hover' },
@@ -1533,34 +1869,96 @@ const ChatPage = () => {
                                   ? 'primary.contrastText'
                                   : 'text.primary',
                                 borderRadius: 2,
+                                position: 'relative',
                               }}
                             >
-                              {message.type === MessageTypeEnum.IMAGE &&
-                              message.mediaUrl ? (
-                                <Box
-                                  component="img"
-                                  src={message.mediaUrl}
-                                  alt="Message"
-                                  sx={{
-                                    maxWidth: '100%',
-                                    borderRadius: 1,
-                                    display: 'block',
-                                  }}
-                                  onError={async (e) => {
-                                    // Try to get signed URL if direct URL fails
-                                    const signedUrl = await getMessageMediaUrl(
-                                      message.mediaUrl || '',
-                                    );
-                                    if (signedUrl && e.currentTarget) {
-                                      e.currentTarget.src = signedUrl;
+                              <Box
+                                sx={{
+                                  display: 'flex',
+                                  alignItems: 'flex-start',
+                                  gap: 1,
+                                }}
+                              >
+                                <Box sx={{ flex: 1 }}>
+                                  {message.deleted ? (
+                                    <Typography
+                                      variant="body2"
+                                      sx={{ fontStyle: 'italic', opacity: 0.7 }}
+                                    >
+                                      This message was deleted
+                                    </Typography>
+                                  ) : message.correction ? (
+                                    <>
+                                      <Typography
+                                        variant="body2"
+                                        sx={{
+                                          textDecoration: 'line-through',
+                                          opacity: 0.7,
+                                          mb: 0.5,
+                                        }}
+                                      >
+                                        {message.originalContent ||
+                                          message.content}
+                                      </Typography>
+                                      <Typography variant="body1">
+                                        {message.correction}
+                                      </Typography>
+                                    </>
+                                  ) : message.type === MessageTypeEnum.IMAGE &&
+                                    message.mediaUrl ? (
+                                    <Box
+                                      component="img"
+                                      src={message.mediaUrl}
+                                      alt="Message"
+                                      sx={{
+                                        maxWidth: '100%',
+                                        borderRadius: 1,
+                                        display: 'block',
+                                      }}
+                                      onError={async (e) => {
+                                        // Try to get signed URL if direct URL fails
+                                        const signedUrl =
+                                          await getMessageMediaUrl(
+                                            message.mediaUrl || '',
+                                          );
+                                        if (signedUrl && e.currentTarget) {
+                                          e.currentTarget.src = signedUrl;
+                                        }
+                                      }}
+                                    />
+                                  ) : (
+                                    <Typography variant="body1">
+                                      {message.content}
+                                    </Typography>
+                                  )}
+                                  {message.edited && (
+                                    <Typography
+                                      variant="caption"
+                                      sx={{
+                                        opacity: 0.7,
+                                        display: 'block',
+                                        mt: 0.5,
+                                      }}
+                                    >
+                                      (edited)
+                                    </Typography>
+                                  )}
+                                </Box>
+                                {!message.deleted && (
+                                  <IconButton
+                                    size="small"
+                                    onClick={(e) =>
+                                      handleMessageMenuClick(e, message)
                                     }
-                                  }}
-                                />
-                              ) : (
-                                <Typography variant="body1">
-                                  {message.content}
-                                </Typography>
-                              )}
+                                    sx={{
+                                      opacity: 0.7,
+                                      '&:hover': { opacity: 1 },
+                                    }}
+                                  >
+                                    <MoreVertIcon fontSize="small" />
+                                  </IconButton>
+                                )}
+                              </Box>
                               <Box
                                 sx={{
                                   display: 'flex',
@@ -1676,6 +2074,82 @@ const ChatPage = () => {
                 })()}
               </Box>
 
+              {/* Correction Preview */}
+              {correctingMessage && (
+                <Paper
+                  sx={{
+                    p: 1.5,
+                    mx: 2,
+                    mb: 1,
+                    bgcolor: 'action.hover',
+                    borderLeft: '3px solid',
+                    borderColor: 'primary.main',
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="caption" color="text.secondary">
+                        Correcting message:
+                      </Typography>
+                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                        {correctingMessage.content}
+                      </Typography>
+                    </Box>
+                    <IconButton
+                      size="small"
+                      onClick={handleCancelCorrection}
+                      sx={{ ml: 1 }}
+                    >
+                      <CancelIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                </Paper>
+              )}
+
+              {/* Edit Preview */}
+              {editingMessage && (
+                <Paper
+                  sx={{
+                    p: 1.5,
+                    mx: 2,
+                    mb: 1,
+                    bgcolor: 'action.hover',
+                    borderLeft: '3px solid',
+                    borderColor: 'primary.main',
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="caption" color="text.secondary">
+                        Editing message:
+                      </Typography>
+                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                        {editingMessage.content}
+                      </Typography>
+                    </Box>
+                    <IconButton
+                      size="small"
+                      onClick={handleCancelCorrection}
+                      sx={{ ml: 1 }}
+                    >
+                      <CancelIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                </Paper>
+              )}
+
               {/* Message Input */}
               <Paper
                 sx={{
@@ -1694,16 +2168,25 @@ const ChatPage = () => {
                   style={{ display: 'none' }}
                   onChange={handlePhotoSelect}
                 />
-                <IconButton
-                  color="primary"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={sending}
-                >
-                  <PhotoCameraIcon />
-                </IconButton>
+                {!correctingMessage && (
+                  <IconButton
+                    color="primary"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={sending}
+                  >
+                    <PhotoCameraIcon />
+                  </IconButton>
+                )}
                 <TextField
+                  inputRef={messageInputRef}
                   fullWidth
-                  placeholder="Type a message..."
+                  placeholder={
+                    correctingMessage
+                      ? 'Enter correction...'
+                      : editingMessage
+                      ? 'Edit message...'
+                      : 'Type a message...'
+                  }
                   value={messageInput}
                   onChange={(e) => handleInputChange(e.target.value)}
                   onKeyDown={(e) => {
@@ -1726,6 +2209,8 @@ const ChatPage = () => {
                           >
                             {sending ? (
                               <CircularProgress size={20} />
+                            ) : correctingMessage || editingMessage ? (
+                              <CheckCircleIcon />
                             ) : (
                               <SendIcon />
                             )}
@@ -1762,6 +2247,89 @@ const ChatPage = () => {
           )}
         </Box>
       </Box>
+
+      {/* Delete Chat Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+      >
+        <DialogTitle>Delete Chat</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete this chat? This action cannot be
+            undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleClearChat} color="error" variant="contained">
+            Clear Chat
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Message Menu */}
+      <Menu
+        anchorEl={messageMenuAnchor?.element}
+        open={Boolean(messageMenuAnchor)}
+        onClose={handleMessageMenuClose}
+      >
+        {messageMenuAnchor?.message.senderId === currentUser?.id ? (
+          <>
+            <MenuItem
+              onClick={() => {
+                if (messageMenuAnchor?.message) {
+                  handleStartEdit(messageMenuAnchor.message);
+                }
+              }}
+            >
+              <ListItemIcon>
+                <EditIcon fontSize="small" />
+              </ListItemIcon>
+              Edit
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                if (messageMenuAnchor?.message) {
+                  handleDeleteMessage(messageMenuAnchor.message);
+                }
+              }}
+            >
+              <ListItemIcon>
+                <DeleteIcon fontSize="small" />
+              </ListItemIcon>
+              Delete
+            </MenuItem>
+          </>
+        ) : (
+          <>
+            <MenuItem
+              onClick={() => {
+                if (messageMenuAnchor?.message) {
+                  handleCopyMessage(messageMenuAnchor.message);
+                }
+              }}
+            >
+              <ListItemIcon>
+                <ContentCopyIcon fontSize="small" />
+              </ListItemIcon>
+              Copy
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                if (messageMenuAnchor?.message) {
+                  handleStartCorrection(messageMenuAnchor.message);
+                }
+              }}
+            >
+              <ListItemIcon>
+                <SpellcheckIcon fontSize="small" />
+              </ListItemIcon>
+              Correct
+            </MenuItem>
+          </>
+        )}
+      </Menu>
     </Box>
   );
 };

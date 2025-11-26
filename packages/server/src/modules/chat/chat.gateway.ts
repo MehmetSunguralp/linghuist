@@ -126,6 +126,38 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     console.log(`User ${me} left chat ${payload.chatId}`);
   }
 
+  // Notify all participants that a chat has been cleared
+  notifyChatCleared(chatId: string) {
+    this.server.to(chatId).emit('chat_cleared', { chatId });
+  }
+
+  // Notify all participants that a message has been edited
+  notifyMessageEdited(
+    chatId: string,
+    data: { messageId: string; content: string; edited: boolean },
+  ) {
+    this.server.to(chatId).emit('message_edited', {
+      chatId,
+      ...data,
+    });
+  }
+
+  // Notify all participants that a message has been corrected
+  notifyMessageCorrected(
+    chatId: string,
+    data: {
+      messageId: string;
+      correction: string;
+      originalContent: string | null;
+      correctedBy: string;
+    },
+  ) {
+    this.server.to(chatId).emit('message_corrected', {
+      chatId,
+      ...data,
+    });
+  }
+
   @SubscribeMessage('send_message')
   async onSendMessage(
     @MessageBody()

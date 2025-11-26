@@ -33,4 +33,19 @@ export class MessageModel {
 
   @Field(() => User, { nullable: true })
   sender?: User;
+
+  @Field(() => Boolean, { nullable: true })
+  edited?: boolean;
+
+  @Field(() => Boolean, { nullable: true })
+  deleted?: boolean;
+
+  @Field({ nullable: true })
+  correctedBy?: string;
+
+  @Field({ nullable: true })
+  correction?: string;
+
+  @Field({ nullable: true })
+  originalContent?: string;
 }

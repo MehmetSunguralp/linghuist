@@ -27,6 +27,11 @@ export const MY_CHATS_QUERY = gql`
         createdAt
         senderId
         read
+        edited
+        deleted
+        correctedBy
+        correction
+        originalContent
       }
     }
   }
@@ -44,6 +49,11 @@ export const GET_MESSAGES_QUERY = gql`
         senderId
         receiverId
         read
+        edited
+        deleted
+        correctedBy
+        correction
+        originalContent
         sender {
           id
           username

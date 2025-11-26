@@ -58,16 +58,17 @@ const Header = () => {
     skip: !user?.id || !isAuthenticated,
     fetchPolicy: 'cache-and-network',
     errorPolicy: 'all',
-    pollInterval: 3000, // Poll every 3 seconds for real-time updates
+    pollInterval: 10000, // Poll every 10 seconds for real-time updates
   });
 
   // Calculate total unread messages
-  const totalUnreadCount = chatsData?.myChats?.reduce((total: number, chat: any) => {
-    const unread = chat.messages?.filter(
-      (m: any) => !m.read && m.senderId !== user?.id,
-    ).length || 0;
-    return total + unread;
-  }, 0) || 0;
+  const totalUnreadCount =
+    chatsData?.myChats?.reduce((total: number, chat: any) => {
+      const unread =
+        chat.messages?.filter((m: any) => !m.read && m.senderId !== user?.id)
+          .length || 0;
+      return total + unread;
+    }, 0) || 0;
 
   useEffect(() => {
     const fetchAvatarUrl = async () => {

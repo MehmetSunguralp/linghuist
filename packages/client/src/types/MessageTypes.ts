@@ -22,4 +22,9 @@ export interface Message {
   read: boolean;
   chatId: string;
   chat?: Chat;
+  edited?: boolean;
+  deleted?: boolean;
+  correctedBy?: string;
+  correction?: string;
+  originalContent?: string | null;
 }
