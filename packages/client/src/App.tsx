@@ -19,6 +19,7 @@ import VerifyEmailPage from '@/pages/VerifyEmailPage';
 import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import ProfilePage from '@/pages/ProfilePage';
 import ChatPage from '@/pages/ChatPage';
+import DiscoverPage from '@/pages/DiscoverPage';
 
 const AppContent = () => {
   // Fetch user data if authenticated
@@ -39,6 +40,7 @@ const AppContent = () => {
           <Route path="/profile/:username" element={<ProfilePage />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/chat/:username" element={<ChatPage />} />
+          <Route path="/discover" element={<DiscoverPage />} />
         </Routes>
       </Box>
     </Router>

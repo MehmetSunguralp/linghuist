@@ -1629,22 +1629,19 @@ const FriendsSection = ({
       ];
 
       const avatarPromises = allUsers.map(async (user) => {
-        // Always prefer thumbnail if available, fallback to full avatar
-        const hasThumbnail =
-          user.userThumbnailUrl && user.userThumbnailUrl.trim() !== '';
-        const imagePath = hasThumbnail ? user.userThumbnailUrl : user.avatarUrl;
+        // Always use thumbnail URL - thumbnails always exist
+        const imagePath = user.userThumbnailUrl;
         if (!imagePath || imagePath.trim() === '') return null;
 
         try {
-          const bucket = hasThumbnail ? 'userThumbnails' : 'avatars';
           const url = await getSupabaseStorageUrl(
             imagePath,
-            bucket,
+            'userThumbnails',
             accessToken,
           );
           return { id: user.id, url: url || '' };
         } catch (error) {
-          console.error(`Failed to get avatar for user ${user.id}:`, error);
+          console.error(`Failed to get thumbnail for user ${user.id}:`, error);
           return null;
         }
       });

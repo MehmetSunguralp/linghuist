@@ -5,6 +5,7 @@ import {
   generateAndUploadThumbnail,
   deleteThumbnail,
 } from '../../lib/thumbnailService';
+import { supabaseAdmin } from '../../lib/supabaseAdminClient';
 
 @Injectable()
 export class UserService {
@@ -320,5 +321,175 @@ export class UserService {
         lastOnline: new Date(),
       },
     });
+  }
+
+  async discoverUsers(
+    userId: string,
+    filter?: {
+      countries?: string[];
+      minAge?: number;
+      maxAge?: number;
+      knownLanguages?: string[];
+      knownLanguageLevels?: string[];
+      learningLanguages?: string[];
+      learningLanguageLevels?: string[];
+    },
+  ) {
+    const where: any = {
+      id: { not: userId }, // Exclude current user
+    };
+
+    // Filter by countries
+    if (filter?.countries && filter.countries.length > 0) {
+      where.country = { in: filter.countries };
+    }
+
+    // Filter by age range
+    if (filter?.minAge !== undefined || filter?.maxAge !== undefined) {
+      where.age = {};
+      if (filter.minAge !== undefined) {
+        where.age.gte = filter.minAge;
+      }
+      if (filter.maxAge !== undefined) {
+        where.age.lte = filter.maxAge;
+      }
+    }
+
+    // Filter by known languages (OR logic - match any of the selected languages)
+    if (filter?.knownLanguages && filter.knownLanguages.length > 0) {
+      const languageConditions: any[] = [];
+      
+      filter.knownLanguages.forEach((langName, index) => {
+        const levelFilter = filter.knownLanguageLevels?.[index];
+        if (levelFilter) {
+          languageConditions.push({
+            languagesKnown: {
+              some: {
+                name: langName,
+                level: levelFilter,
+              },
+            },
+          });
+        } else {
+          languageConditions.push({
+            languagesKnown: {
+              some: {
+                name: langName,
+              },
+            },
+          });
+        }
+      });
+
+      if (languageConditions.length > 0) {
+        // Use OR to match any of the selected known languages
+        where.AND = where.AND || [];
+        where.AND.push({
+          OR: languageConditions,
+        });
+      }
+    }
+
+    // Filter by learning languages (OR logic - match any of the selected languages)
+    if (filter?.learningLanguages && filter.learningLanguages.length > 0) {
+      const languageConditions: any[] = [];
+      
+      filter.learningLanguages.forEach((langName, index) => {
+        const levelFilter = filter.learningLanguageLevels?.[index];
+        if (levelFilter) {
+          languageConditions.push({
+            languagesLearn: {
+              some: {
+                name: langName,
+                level: levelFilter,
+              },
+            },
+          });
+        } else {
+          languageConditions.push({
+            languagesLearn: {
+              some: {
+                name: langName,
+              },
+            },
+          });
+        }
+      });
+
+      if (languageConditions.length > 0) {
+        // Use OR to match any of the selected learning languages
+        where.AND = where.AND || [];
+        where.AND.push({
+          OR: languageConditions,
+        });
+      }
+    }
+
+    const users = await prisma.user.findMany({
+      where,
+      include: {
+        languagesKnown: true,
+        languagesLearn: true,
+      },
+      orderBy: [
+        { isOnline: 'desc' }, // Online users first
+        { lastOnline: 'desc' }, // Then by last online (most recent first)
+      ],
+    });
+
+    // Check and update missing thumbnails for users who have avatars
+    // This handles the case where thumbnails exist in storage but DB is null
+    const updatePromises = users.map(async (user) => {
+      if (user.avatarUrl && !user.userThumbnailUrl && user.id) {
+        try {
+          // Check if thumbnail exists in bucket by listing files for this user
+          // Path format: {userId}/profile/{timestamp}.webp
+          const { data: files, error } = await supabaseAdmin.storage
+            .from('userThumbnails')
+            .list(`${user.id}/profile`, {
+              limit: 1,
+              sortBy: { column: 'created_at', order: 'desc' },
+            });
+
+          if (!error && files && files.length > 0) {
+            // Thumbnail exists, update database with the path
+            // Format: userThumbnails/{userId}/profile/{filename}
+            const thumbnailPath = `userThumbnails/${user.id}/profile/${files[0].name}`;
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { userThumbnailUrl: thumbnailPath },
+            });
+            // Update the user object in the response
+            user.userThumbnailUrl = thumbnailPath;
+          } else if (user.avatarUrl) {
+            // Thumbnail doesn't exist but avatar does, generate it
+            const thumbnailPath = await generateAndUploadThumbnail(
+              user.avatarUrl,
+              user.id,
+            );
+            if (thumbnailPath) {
+              await prisma.user.update({
+                where: { id: user.id },
+                data: { userThumbnailUrl: thumbnailPath },
+              });
+              user.userThumbnailUrl = thumbnailPath;
+            }
+          }
+        } catch (error) {
+          // Silently fail - don't block the query if thumbnail check fails
+          console.error(
+            `Failed to check/update thumbnail for user ${user.id}:`,
+            error,
+          );
+        }
+      }
+    });
+
+    // Run updates in parallel but don't wait for them to complete
+    Promise.all(updatePromises).catch((error) => {
+      console.error('Error updating thumbnails:', error);
+    });
+
+    return users;
   }
 }

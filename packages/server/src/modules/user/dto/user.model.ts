@@ -50,6 +50,9 @@ export class User {
   @Field(() => Boolean)
   isOnline: boolean;
 
+  @Field(() => Date, { nullable: true })
+  lastOnline?: Date;
+
   @Field(() => [UserLanguage], { nullable: true })
   languagesKnown?: UserLanguage[];
 

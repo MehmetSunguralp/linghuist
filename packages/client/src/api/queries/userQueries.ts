@@ -190,3 +190,31 @@ export const SENT_FRIEND_REQUESTS_QUERY = gql`
     }
   }
 `;
+
+export const DISCOVER_USERS_QUERY = gql`
+  query DiscoverUsers($filter: DiscoverUsersFilterInput) {
+    discoverUsers(filter: $filter) {
+      id
+      email
+      username
+      name
+      avatarUrl
+      userThumbnailUrl
+      bio
+      country
+      age
+      isOnline
+      lastOnline
+      languagesKnown {
+        name
+        level
+        code
+      }
+      languagesLearn {
+        name
+        level
+        code
+      }
+    }
+  }
+`;

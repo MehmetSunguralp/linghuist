@@ -11,6 +11,7 @@ import { UserService } from './user.service';
 import { UpdateUserInput } from './dto/update_user.input';
 import { FriendRequest } from './dto/friend_request.model';
 import { User } from './dto/user.model';
+import { DiscoverUsersFilterInput } from './dto/discover_users_filter.input';
 
 @Resolver(() => User)
 export class UserResolver {
@@ -103,5 +104,14 @@ export class UserResolver {
   async matchUsers(@Context('userId') userId: string) {
     if (!userId) throw new Error('Unauthorized');
     return this.userService.findLanguageMatches(userId);
+  }
+
+  @Query(() => [User])
+  async discoverUsers(
+    @Context('userId') userId: string,
+    @Args('filter', { nullable: true }) filter?: DiscoverUsersFilterInput,
+  ) {
+    if (!userId) throw new Error('Unauthorized');
+    return this.userService.discoverUsers(userId, filter);
   }
 }

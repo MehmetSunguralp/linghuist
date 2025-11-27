@@ -341,29 +341,25 @@ const ChatPage = () => {
 
       setChats(processedChats);
 
-      // Fetch avatars/thumbnails for chat list
+      // Fetch thumbnails for chat list (always use thumbnails)
       const fetchAvatars = async () => {
         const avatarMap: Record<string, string> = {};
         for (const item of processedChats) {
           if (item.otherUser && accessToken) {
-            // Prefer thumbnail over full avatar
-            const imagePath =
-              item.otherUser.userThumbnailUrl || item.otherUser.avatarUrl;
+            // Always use thumbnail URL - thumbnails always exist
+            const imagePath = item.otherUser.userThumbnailUrl;
             if (imagePath) {
               try {
-                const bucket = item.otherUser.userThumbnailUrl
-                  ? 'userThumbnails'
-                  : 'avatars';
                 const url = await getSupabaseStorageUrl(
                   imagePath,
-                  bucket,
+                  'userThumbnails',
                   accessToken,
                 );
                 if (url && item.otherUser.id) {
                   avatarMap[item.otherUser.id] = url;
                 }
               } catch (error) {
-                console.error('Failed to get avatar URL:', error);
+                console.error('Failed to get thumbnail URL:', error);
               }
             }
           }
@@ -461,25 +457,22 @@ const ChatPage = () => {
     }
   }, [socket, isConnected, username, userData, selectedChat, otherUser, chats]);
 
-  // Fetch other user avatar/thumbnail
+  // Fetch other user thumbnail (always use thumbnails)
   useEffect(() => {
     const fetchAvatar = async () => {
       if (otherUser && accessToken) {
-        // Prefer thumbnail over full avatar
-        const imagePath = otherUser.userThumbnailUrl || otherUser.avatarUrl;
+        // Always use thumbnail URL - thumbnails always exist
+        const imagePath = otherUser.userThumbnailUrl;
         if (imagePath) {
           try {
-            const bucket = otherUser.userThumbnailUrl
-              ? 'userThumbnails'
-              : 'avatars';
             const url = await getSupabaseStorageUrl(
               imagePath,
-              bucket,
+              'userThumbnails',
               accessToken,
             );
             setOtherUserAvatar(url || '');
           } catch (error) {
-            console.error('Failed to get avatar URL:', error);
+            console.error('Failed to get thumbnail URL:', error);
             setOtherUserAvatar('');
           }
         } else {
@@ -493,12 +486,7 @@ const ChatPage = () => {
     if (otherUser) {
       fetchAvatar();
     }
-  }, [
-    otherUser?.avatarUrl,
-    otherUser?.userThumbnailUrl,
-    otherUser?.id,
-    accessToken,
-  ]);
+  }, [otherUser?.userThumbnailUrl, otherUser?.id, accessToken]);
 
   // WebSocket event handlers
   useEffect(() => {

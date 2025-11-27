@@ -10,13 +10,14 @@ import {
   MenuItem,
   ListItemIcon,
   Divider,
+  Badge,
 } from '@mui/material';
 import {
   Person as PersonIcon,
   Logout as LogoutIcon,
   Chat as ChatIcon,
+  Explore as ExploreIcon,
 } from '@mui/icons-material';
-import { Badge, IconButton } from '@mui/material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import {
@@ -72,8 +73,8 @@ const Header = () => {
 
   useEffect(() => {
     const fetchAvatarUrl = async () => {
-      // Prefer thumbnail for header (smaller, faster)
-      const imagePath = user?.userThumbnailUrl || user?.avatarUrl;
+      // Always use thumbnail URL - thumbnails always exist
+      const imagePath = user?.userThumbnailUrl;
       if (!imagePath || !accessToken) {
         // Clear avatar if no user or token
         if (signedAvatarUrl) {
@@ -95,8 +96,12 @@ const Header = () => {
 
       // Fetch new signed URL
       try {
-        const bucket = user?.userThumbnailUrl ? 'userThumbnails' : 'avatars';
-        const url = await getSupabaseStorageUrl(imagePath, bucket, accessToken);
+        // Always use userThumbnails bucket
+        const url = await getSupabaseStorageUrl(
+          imagePath,
+          'userThumbnails',
+          accessToken,
+        );
 
         if (url) {
           // Cache the signed URL with expiry time (1 hour from now)
@@ -118,9 +123,9 @@ const Header = () => {
     };
 
     fetchAvatarUrl();
-    // Only depend on user avatar URL and access token, not the cached values
+    // Only depend on user thumbnail URL and access token, not the cached values
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.avatarUrl, user?.userThumbnailUrl, user?.id, accessToken]);
+  }, [user?.userThumbnailUrl, user?.id, accessToken]);
 
   // Reset loaded state when avatar URL changes
   useEffect(() => {
@@ -167,6 +172,13 @@ const Header = () => {
             <>
               <Button
                 color="inherit"
+                onClick={() => navigate('/discover')}
+                startIcon={<ExploreIcon />}
+              >
+                Discover
+              </Button>
+              <Button
+                color="inherit"
                 onClick={() => navigate('/chat')}
                 startIcon={
                   <Badge badgeContent={totalUnreadCount} color="error" max={99}>
@@ -184,11 +196,13 @@ const Header = () => {
                   opacity: signedAvatarUrl && !avatarLoaded ? 0 : 1,
                   transition: 'opacity 0.3s ease-in-out',
                 }}
-                imgProps={{
-                  onLoad: () => {
-                    if (signedAvatarUrl) {
-                      setAvatarLoaded(true);
-                    }
+                slotProps={{
+                  img: {
+                    onLoad: () => {
+                      if (signedAvatarUrl) {
+                        setAvatarLoaded(true);
+                      }
+                    },
                   },
                 }}
                 onClick={handleAvatarClick}
